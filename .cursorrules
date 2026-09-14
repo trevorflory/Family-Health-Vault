@@ -1,0 +1,115 @@
+# Healthcare App — Agent Conventions
+
+## Stack
+
+- Expo SDK 57 + React Native + TypeScript (strict)
+- Expo Router file-based navigation under `app/`
+- `expo-print` for PDF generation
+- `expo-sqlite` for local persistence
+- Prefer pure functions for legal/template logic so they are Jest-testable without native modules
+
+## Paths
+
+- `types/` — shared domain types (no React imports)
+- `services/` — side-effectful and pure domain services
+- `data/` — static templates (health authorities, legal copy, patient vault)
+- `app/patient/[id]/foiWizard.tsx` — FOI wizard UI
+- `app/patient/[id]/call811Prep.tsx` — 811 caregiver script prep UI
+- `app/patient/[id]/sbarExport.tsx` — 1-page SBAR export UI
+- `app/digest/daily.tsx` / `app/digest/weekly.tsx` — caregiver digest dashboards
+- `app/patient/[id]/uploadDoc.tsx` — OCR capture + verification UI
+- `app/patient/[id]/voiceDebrief.tsx` — post-visit voice debrief UI
+- `app/sandbox/aiTest.tsx` — local Ollama / SaMD sandbox UI
+- `app/sandbox/index.tsx` — QA core-loop sandbox (digest / SBAR / FOI / 811)
+- `utils/mockSeeder.ts` — SQLite dummy Dad/Child profile seeder
+- `app/patient/[id]/emergencyPass.tsx` — emergency QR + wallet card
+- `app/patient/[id]/proxyAccess.tsx` — proxy roles, access log, age-out hand-off
+- `types/db.ts` — SQLite row/schema types (`MedicalEvents`)
+- `db/` — SQLite schema + repository helpers
+
+## Proxy access rules
+
+1. Roles: `PRIMARY_POA`, `SIBLING_COORDINATOR`, `EMERGENCY_PASS` with fixed permission sets from `ROLE_PERMISSIONS`.
+2. Access log is append-only — revoke/age-out must never delete prior entries.
+3. `EMERGENCY_PASS` grants require `expiresAt`; expired grants deny checks.
+4. Age-out hand-off marks parental `PRIMARY_POA` grants `AGED_OUT` at consent age (default 16); demo may force for younger profiles.
+5. Wire Emergency Pass CTA to existing `emergencyPass` screen rather than reimplementing QR crypto.
+
+## SBAR summarizer rules
+
+1. `compileSBAR` is an Educational Context Summarizer only — never diagnose or prescribe.
+2. Assessment = caregiver observations/concerns; Recommendation = questions + documents to bring.
+3. Reuse `formatActiveMedications` from the 811 engine; tolerate nullish dose/frequency.
+4. Resolve optional `appointmentId` via `getHousehold` / household schedules — do not invent a parallel appointment fixture.
+5. `compileSBAR` is async: load CONFIRMED/PENDING_REVIEW MedicalEvents (or inject `options.medicalEvents` in tests); fold VISIT_DEBRIEF → Assessment and OCR labs/Rx → Background with SaMD-safe wording.
+6. `generateSBARPDF` returns an `expo-print` URI (or base64 fallback); no separate SBAR SQLite table — MedicalEvents are the persistence source.
+7. Always attach `SBAR_REGULATORY_NOTICE` to engine output and UI; surface `sourceEventSummaries` in the export preview.
+
+## QA sandbox rules
+
+1. `seedLocalSandboxData()` must create Dad (78) CKD/T2DM + 4 meds + SHA lab mock + visit debrief MedicalEvent and Child (4) SK vaccines.
+2. Sandbox actions exercise real services (digest, FOI, 811, SBAR) — no fake stubs for core loops.
+3. Digest trigger must surface the push alert payload for verification.
+4. Keep seed fixtures unit-testable without SQLite where possible.
+
+## Emergency pass rules
+
+1. Encrypt critical emergency context with AES-256-GCM; tokens are short-lived (default 4h).
+2. QR encodes ciphertext only; wallet card PDF also prints human-readable alerts for offline ER use.
+3. Override demo key via `EXPO_PUBLIC_EMERGENCY_PASS_KEY` in real deployments.
+4. Never log decrypted emergency payloads.
+
+## Local LLM bridge rules
+
+1. Default Ollama endpoints: `http://localhost:11434` and Android `http://10.0.2.2:11434`.
+2. Always send `SAMD_SYSTEM_PROMPT` — educational summarizer only; never diagnose/prescribe.
+3. Support `llama3.2:3b` and `phi3:mini` (and other Ollama tags via config).
+4. Offline simulator fallback must remain SaMD-safe when Ollama is unreachable.
+
+## Voice debrief rules
+
+1. Record with `expo-av`; prefer local Whisper mock (`127.0.0.1:8765`) over cloud STT.
+2. Extraction is a summarizer only — no diagnosis or prescribing.
+3. Persist as `MedicalEvents.kind = 'VISIT_DEBRIEF'` with `parsed.eventType = 'VISIT_DEBRIEF'`.
+4. Caregiver must review/edit action items before `CONFIRMED`.
+
+## OCR ingestion rules
+
+1. Prefer on-device OCR (`tesseract.js`); never send document images to a remote OCR API.
+2. Keep regex parsers (`parseLabResults`, `parsePrescription`) pure and unit-tested without Tesseract.
+3. Save both `rawText` and `parsedJson` into `MedicalEvents`; initial OCR save is `PENDING_REVIEW`, confirm flow sets `CONFIRMED`.
+4. Verification UI must let caregivers edit extracted fields before confirm.
+
+## Digest / notification rules
+
+1. `compileDailyDigest` / `compileWeeklyDigest` scan Aging Parent + Child + Self household profiles.
+2. Daily scan includes meds today, appointments ≤72h with prep alerts, FOI pending >30 days, missing labs.
+3. Notifications: daily 07:00 and Sunday 16:00 via `expo-notifications`; deep-link to `/digest/daily` or `/digest/weekly`.
+4. Keep digest compilation pure/testable with an injectable `now` clock; mock `expo-notifications` in unit tests.
+
+## 811 Call Assistant rules
+
+1. `generate811Script` is a Contextual Summarizer / Caregiver Script Assistant only.
+2. Never emit diagnostic verdicts, acuity scores, or treatment/prescription instructions.
+3. Tolerate null/missing medication dose and frequency without crashing.
+4. Always return `spokenIntroScript`, `historicalRedFlags`, and exactly 3 `questionsToAskNurse`.
+5. Call action uses `expo-linking` with `tel:811` only after a script is generated.
+
+## FOI module rules
+
+1. Always source facility addresses from `data/healthAuthorities.ts` templates.
+2. Legal declaration text must invoke the act for the selected jurisdiction (PHIPA / HIPA / HIA / FIPPA-PIPA).
+3. `generateFOIPDF` returns a print URI or base64 string from `expo-print`.
+4. Persist via `FOIRequests` with status `DRAFT` or `DISPATCHED` only.
+5. Do not log raw PHN/HIN values.
+6. Keep wizard steps explicit; do not collapse Step 3 (authority proof) into Step 2.
+
+## Testing
+
+- Unit-test HTML/legal template builders without mocking Expo when possible.
+- Smoke-test wizard wiring with lightweight Jest + mocks for `expo-print` / SQLite.
+
+## Commits
+
+- Feature work on `cursor/<name>-a310` branches.
+- Prefer small, descriptive commits focused on the active slice.

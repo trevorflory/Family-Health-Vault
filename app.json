@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Healthcare App",
+    "slug": "healthcare-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "healthcare",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0f3d3e",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sharing",
+      "expo-sqlite",
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Healthcare App to access photos for local OCR of lab and prescription documents.",
+          "cameraPermission": "Allow Healthcare App to use the camera to capture lab reports and prescription labels."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Healthcare App to record post-visit voice debriefs."
+        }
+      ]
+    ]
+  }
+}
