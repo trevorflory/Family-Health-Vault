@@ -31,6 +31,7 @@ import {
   runAbMyHealthConnectorSandbox,
   runBcHealthGatewayConnectorSandbox,
   runOnPortalConnectorSandbox,
+  runQcCarnetConnectorSandbox,
   runWeeklyDigestSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
@@ -39,6 +40,7 @@ import {
   type AbConnectorSandboxResult,
   type BcConnectorSandboxResult,
   type OnConnectorSandboxResult,
+  type QcConnectorSandboxResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
 } from '../../utils/sandboxFlows';
@@ -58,6 +60,7 @@ type BusyKey =
   | 'abConnect'
   | 'bcConnect'
   | 'onConnect'
+  | 'qcConnect'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -91,6 +94,8 @@ export default function SandboxHomeScreen() {
     useState<BcConnectorSandboxResult | null>(null);
   const [onConnectResult, setOnConnectResult] =
     useState<OnConnectorSandboxResult | null>(null);
+  const [qcConnectResult, setQcConnectResult] =
+    useState<QcConnectorSandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -213,6 +218,13 @@ export default function SandboxHomeScreen() {
       runOnPortalConnectorSandbox(),
     );
     if (result) setOnConnectResult(result);
+  }
+
+  async function onQcConnect() {
+    const result = await withBusy('qcConnect', () =>
+      runQcCarnetConnectorSandbox(),
+    );
+    if (result) setQcConnectResult(result);
   }
 
   return (
@@ -419,6 +431,29 @@ export default function SandboxHomeScreen() {
             {onConnectResult.smartAvailable ? 'available' : 'not public'}
           </Text>
           <Link href={onConnectResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open portal sync →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="3f. QC / Carnet santé connector"
+        subtitle="Sample FHIR sync + Carnet santé playbook (FILE_IMPORT; SMART not public)"
+        busy={busy === 'qcConnect'}
+        disabled={busy !== null}
+        onPress={onQcConnect}
+      />
+      {qcConnectResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>QC connector result</Text>
+          <Text style={styles.meta}>
+            Imported {qcConnectResult.importedCount} · {qcConnectResult.jurisdiction}{' '}
+            · playbook {qcConnectResult.playbookSteps} · SMART{' '}
+            {qcConnectResult.smartAvailable ? 'available' : 'not public'}
+          </Text>
+          <Link href={qcConnectResult.deepLink} asChild>
             <Pressable>
               <Text style={styles.link}>Open portal sync →</Text>
             </Pressable>

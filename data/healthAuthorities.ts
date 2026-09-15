@@ -309,6 +309,24 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
   },
   // —— Quebec ——
   {
+    id: 'qc-carnet-sante',
+    name: 'Carnet santé Québec (provincial portal)',
+    jurisdiction: 'QC',
+    departmentName: 'Carnet santé Québec — soutien usager',
+    addressLines: [
+      'Gouvernement du Québec — Carnet santé Québec',
+      'See carnetsante.gouv.qc.ca for support channels',
+      'Québec, QC',
+    ],
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'Carnet santé Québec',
+      patientPortalUrl: 'https://carnetsante.gouv.qc.ca/portail',
+      notes:
+        'Primary path: Carnet santé lab/imaging view → print/OCR (`importQcCarnetLabText`). Optional FHIR JSON for partner/sandbox. FOI to treating CIUSSS when incomplete. No public SMART — see data/qcInterop.ts.',
+    },
+  },
+  {
     id: 'qc-ciusss-centresud',
     name: 'CIUSSS du Centre-Sud-de-l’Île-de-Montréal',
     jurisdiction: 'QC',
@@ -321,6 +339,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '514-593-3600',
     email: 'acces.dossier@ccsmtl.gouv.qc.ca',
+    interop: {
+      syncMode: 'MANUAL_ONLY',
+      portalLabel: 'Carnet santé Québec',
+      patientPortalUrl: 'https://carnetsante.gouv.qc.ca/portail',
+      notes:
+        'Facility FOI custodian. Prefer Carnet santé download/print via qc-carnet-sante for labs; FOI here for establishment charts.',
+    },
   },
   {
     id: 'qc-sante',

@@ -49,6 +49,7 @@
 9. Alberta (`ab-ahs` / MyHealth Records): same FILE_IMPORT pattern (`importAbMyHealthLabText`, `importAbFhirJsonExport`); see `data/abInterop.ts`. Shared helpers live in `services/interop/connector.ts`.
 10. British Columbia (`bc-health-gateway`): Health Gateway Download records FILE_IMPORT (`importBcHealthGatewayLabText`, `importBcFhirJsonExport`); FOI for charts still uses Fraser/VCH/Island templates.
 11. Ontario (`on-patient-portals`): fragmented MyChart/OLIS FILE_IMPORT (`importOnMyChartLabText`, `importOnFhirJsonExport`); FOI via UHN/Sunnybrook/OH under PHIPA. Do not invent a unified provincial SMART endpoint.
+12. Québec (`qc-carnet-sante`): Carnet santé Québec FILE_IMPORT (`importQcCarnetLabText`, `importQcFhirJsonExport`); FOI via treating CIUSSS / Santé Québec.
 
 ## Proxy access rules
 

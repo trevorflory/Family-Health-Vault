@@ -68,6 +68,7 @@ import {
   runAbMyHealthConnectorSandbox,
   runBcHealthGatewayConnectorSandbox,
   runOnPortalConnectorSandbox,
+  runQcCarnetConnectorSandbox,
   runWeeklyDigestSandbox,
 } from '../utils/sandboxFlows';
 import { getDadSandboxMedicalEvents } from '../utils/mockSeeder';
@@ -221,6 +222,15 @@ describe('sandboxFlows core loops', () => {
     });
     expect(result.importedCount).toBeGreaterThanOrEqual(4);
     expect(result.jurisdiction).toBe('ON');
+    expect(result.smartAvailable).toBe(false);
+  });
+
+  it('runQcCarnetConnectorSandbox imports QC sample FHIR', async () => {
+    const result = await runQcCarnetConnectorSandbox({
+      now: new Date('2026-09-15T12:00:00.000Z'),
+    });
+    expect(result.importedCount).toBeGreaterThanOrEqual(4);
+    expect(result.jurisdiction).toBe('QC');
     expect(result.smartAvailable).toBe(false);
   });
 });
