@@ -65,6 +65,7 @@ import {
   runLeoAgeOutSandbox,
   runSkHipaFoiSandbox,
   runSkShaConnectorSandbox,
+  runAbMyHealthConnectorSandbox,
   runWeeklyDigestSandbox,
 } from '../utils/sandboxFlows';
 import { getDadSandboxMedicalEvents } from '../utils/mockSeeder';
@@ -192,5 +193,14 @@ describe('sandboxFlows core loops', () => {
     expect(result.smartAvailable).toBe(false);
     expect(result.playbookSteps).toBeGreaterThanOrEqual(4);
     expect(result.deepLink).toBe('/patient/pt-7801/portalSync');
+  });
+
+  it('runAbMyHealthConnectorSandbox imports AB sample FHIR', async () => {
+    const result = await runAbMyHealthConnectorSandbox({
+      now: new Date('2026-09-15T12:00:00.000Z'),
+    });
+    expect(result.importedCount).toBeGreaterThanOrEqual(4);
+    expect(result.jurisdiction).toBe('AB');
+    expect(result.smartAvailable).toBe(false);
   });
 });

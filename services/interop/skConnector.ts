@@ -4,25 +4,25 @@
  * (partner/sandbox). SMART OAuth is stubbed until a public endpoint exists.
  */
 
-import { saveMedicalEvent } from '../../db/medicalEvents';
 import {
   MYSASK_EXPORT_PLAYBOOK,
   MYSASK_PORTAL,
   SK_SHA_AUTHORITY_ID,
   SK_SMART_READINESS,
 } from '../../data/skInterop';
-import type { MedicalEventRecord, SaveMedicalEventInput } from '../../types/db';
+import type {
+  MedicalEventRecord,
+  OcrParsedPayload,
+  SaveMedicalEventInput,
+} from '../../types/db';
 import type { FhirImportResource, InteropPullResult } from '../../types/interop';
-import {
-  inferMedicalEventKind,
-  parseOcrDocument,
-} from '../ocrTextParsers';
 import {
   createFileImportConnector,
   importFhirIntoVault,
+  importFhirJsonExportForAuthority,
+  importPortalLabTextForAuthority,
   type HealthAuthorityConnector,
 } from './connector';
-import { parseFhirExportJson } from './fhirJson';
 
 export { SK_SHA_AUTHORITY_ID as SHA_AUTHORITY_ID } from '../../data/skInterop';
 
@@ -159,28 +159,12 @@ export async function importSkFhirJsonExport(options: {
   status?: SaveMedicalEventInput['status'];
   now?: Date;
 }): Promise<InteropPullResult & { parseError?: string }> {
-  const parsed = parseFhirExportJson(options.jsonText);
-  if (!parsed.ok) {
-    return {
-      authorityId: SK_SHA_AUTHORITY_ID,
-      jurisdiction: 'SK',
-      importedCount: 0,
-      skippedCount: 0,
-      syncedAt: (options.now ?? new Date()).toISOString(),
-      notes: [parsed.error],
-      parseError: parsed.error,
-    };
-  }
-
-  const connector = createSaskatchewanConnector({
-    fileResources: parsed.resources,
-  });
-  await connector.authenticate();
-  return importFhirIntoVault({
+  return importFhirJsonExportForAuthority({
     patientId: options.patientId,
     authorityId: SK_SHA_AUTHORITY_ID,
-    bundle: parsed.resources,
-    status: options.status ?? 'PENDING_REVIEW',
+    jurisdictionFallback: 'SK',
+    jsonText: options.jsonText,
+    status: options.status,
     now: options.now,
   });
 }
@@ -194,40 +178,20 @@ export async function importSkMySaskLabText(options: {
   sourceUri?: string | null;
   status?: MedicalEventRecord['status'];
   eventId?: string;
-}): Promise<{ record: MedicalEventRecord; parsed: ReturnType<typeof parseOcrDocument> }> {
-  const rawText = options.rawText.trim();
-  if (!rawText) {
-    throw new Error('MySask lab text is empty');
-  }
-
-  // Ensure portal chrome so inferKind prefers PORTAL_SCREENSHOT when labs present.
-  const withChrome = /mysask|portal\s*screenshot|ehealth\s*sask/i.test(rawText)
-    ? rawText
-    : `MySaskHealthRecord Portal Screenshot / Lab Results export\n${rawText}`;
-
-  const parsed = parseOcrDocument(withChrome);
-  parsed.sourceAuthorityId = SK_SHA_AUTHORITY_ID;
-  parsed.portalLabel = MYSASK_PORTAL.label;
-  if (!parsed.parserNotes.some((n) => /mysask/i.test(n))) {
-    parsed.parserNotes.unshift(
-      'Imported via Saskatchewan MySask lab text path — confirm values before CONFIRMED.',
-    );
-  }
-
-  const record = await saveMedicalEvent({
-    id: options.eventId,
+}): Promise<{ record: MedicalEventRecord; parsed: OcrParsedPayload }> {
+  return importPortalLabTextForAuthority({
     patientId: options.patientId,
-    kind: inferMedicalEventKind(parsed),
-    sourceUri: options.sourceUri ?? null,
-    rawText: withChrome,
-    parsed,
-    status: options.status ?? 'PENDING_REVIEW',
-    sourceType: 'FILE_IMPORT',
-    sourceAuthorityId: SK_SHA_AUTHORITY_ID,
-    lastSyncedAt: new Date().toISOString(),
+    authorityId: SK_SHA_AUTHORITY_ID,
+    portalLabel: MYSASK_PORTAL.label,
+    portalChromePattern: /mysask|portal\s*screenshot|ehealth\s*sask/i,
+    portalChromePrefix:
+      'MySaskHealthRecord Portal Screenshot / Lab Results export',
+    note: 'Imported via Saskatchewan MySask lab text path — confirm values before CONFIRMED.',
+    rawText: options.rawText,
+    sourceUri: options.sourceUri,
+    status: options.status,
+    eventId: options.eventId,
   });
-
-  return { record, parsed };
 }
 
 /**

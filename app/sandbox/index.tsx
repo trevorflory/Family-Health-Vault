@@ -28,11 +28,13 @@ import {
   runLeoAgeOutSandbox,
   runSkHipaFoiSandbox,
   runSkShaConnectorSandbox,
+  runAbMyHealthConnectorSandbox,
   runWeeklyDigestSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
   type OcrLabSandboxResult,
   type SkConnectorSandboxResult,
+  type AbConnectorSandboxResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
 } from '../../utils/sandboxFlows';
@@ -49,6 +51,7 @@ type BusyKey =
   | 'ocr'
   | 'voice'
   | 'skConnect'
+  | 'abConnect'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -76,6 +79,8 @@ export default function SandboxHomeScreen() {
     useState<VoiceDebriefSandboxResult | null>(null);
   const [skConnectResult, setSkConnectResult] =
     useState<SkConnectorSandboxResult | null>(null);
+  const [abConnectResult, setAbConnectResult] =
+    useState<AbConnectorSandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -177,6 +182,13 @@ export default function SandboxHomeScreen() {
   async function onSkConnect() {
     const result = await withBusy('skConnect', () => runSkShaConnectorSandbox());
     if (result) setSkConnectResult(result);
+  }
+
+  async function onAbConnect() {
+    const result = await withBusy('abConnect', () =>
+      runAbMyHealthConnectorSandbox(),
+    );
+    if (result) setAbConnectResult(result);
   }
 
   return (
@@ -316,6 +328,29 @@ export default function SandboxHomeScreen() {
           <Link href={skConnectResult.deepLink} asChild>
             <Pressable>
               <Text style={styles.link}>Open SK portal sync →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="3c. AB / MyHealth connector"
+        subtitle="Sample FHIR sync + playbook (FILE_IMPORT; SMART not public)"
+        busy={busy === 'abConnect'}
+        disabled={busy !== null}
+        onPress={onAbConnect}
+      />
+      {abConnectResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>AB connector result</Text>
+          <Text style={styles.meta}>
+            Imported {abConnectResult.importedCount} · {abConnectResult.jurisdiction}{' '}
+            · playbook {abConnectResult.playbookSteps} · SMART{' '}
+            {abConnectResult.smartAvailable ? 'available' : 'not public'}
+          </Text>
+          <Link href={abConnectResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open portal sync →</Text>
             </Pressable>
           </Link>
         </View>

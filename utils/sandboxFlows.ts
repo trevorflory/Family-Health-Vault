@@ -28,6 +28,7 @@ import type { FOIRequestPayload } from '../types/foiPayload';
 import type { SBARDocument } from '../types/sbar';
 import type { WeeklyDigestPayload } from '../types/digest';
 import { syncSkSampleToVault } from '../services/interop/skConnector';
+import { syncAbSampleToVault } from '../services/interop/abConnector';
 import {
   SEED_CHILD_ID,
   SEED_DAD_ID,
@@ -368,6 +369,33 @@ export async function runSkShaConnectorSandbox(options?: {
     smartAvailable: first.smart.ok,
     playbookSteps: first.playbook.length,
     reimportImportedCount: second.result.importedCount,
+    deepLink: `/patient/${patientId}/portalSync`,
+  };
+}
+
+export interface AbConnectorSandboxResult {
+  importedCount: number;
+  jurisdiction: string;
+  smartAvailable: boolean;
+  playbookSteps: number;
+  deepLink: string;
+}
+
+/** Exercise Alberta MyHealth FILE_IMPORT sample FHIR sync. */
+export async function runAbMyHealthConnectorSandbox(options?: {
+  patientId?: string;
+  now?: Date;
+}): Promise<AbConnectorSandboxResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const { result, smart, playbook } = await syncAbSampleToVault({
+    patientId,
+    now: options?.now ?? new Date('2026-09-15T12:00:00.000Z'),
+  });
+  return {
+    importedCount: result.importedCount,
+    jurisdiction: result.jurisdiction,
+    smartAvailable: smart.ok,
+    playbookSteps: playbook.length,
     deepLink: `/patient/${patientId}/portalSync`,
   };
 }

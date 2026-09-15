@@ -27,10 +27,11 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     fax: '780-735-1152',
     email: 'access.disclosure@ahs.ca',
     interop: {
-      syncMode: 'MANUAL_ONLY',
+      syncMode: 'FILE_IMPORT',
       portalLabel: 'Alberta MyHealth Records',
       patientPortalUrl: 'https://myhealth.alberta.ca/',
-      notes: 'Use portal screenshot OCR or FOI until SMART FHIR partner lands.',
+      notes:
+        'Primary path: MyHealth Print Lab Results / Print Reports PDF → OCR or text import (`importAbMyHealthLabText`). Optional FHIR JSON (`importAbFhirJsonExport`) for partner/sandbox bundles. FOI (HIA) when portal incomplete. No public SMART endpoint — see data/abInterop.ts.',
     },
   },
   // —— British Columbia ——
