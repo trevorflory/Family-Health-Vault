@@ -34,6 +34,7 @@ import { syncOnSampleToVault } from '../services/interop/onConnector';
 import { syncQcSampleToVault } from '../services/interop/qcConnector';
 import { syncMbSampleToVault } from '../services/interop/mbConnector';
 import { syncNsSampleToVault } from '../services/interop/nsConnector';
+import { syncAllRemainingCanadaSamples } from '../services/interop/canadaRemainingConnectors';
 import {
   SEED_CHILD_ID,
   SEED_DAD_ID,
@@ -536,6 +537,31 @@ export async function runNsYourHealthConnectorSandbox(options?: {
     jurisdiction: result.jurisdiction,
     smartAvailable: smart.ok,
     playbookSteps: playbook.length,
+    deepLink: `/patient/${patientId}/portalSync`,
+  };
+}
+
+export interface RemainingCanadaSandboxResult {
+  jurisdictions: string[];
+  totalImported: number;
+  allSmartUnavailable: boolean;
+  deepLink: string;
+}
+
+/** Exercise NB/NL/PE/YT/NT/NU FILE_IMPORT sample syncs (completes Canada coverage). */
+export async function runRemainingCanadaConnectorsSandbox(options?: {
+  patientId?: string;
+  now?: Date;
+}): Promise<RemainingCanadaSandboxResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const rows = await syncAllRemainingCanadaSamples({
+    patientId,
+    now: options?.now ?? new Date('2026-09-15T12:00:00.000Z'),
+  });
+  return {
+    jurisdictions: rows.map((r) => r.result.jurisdiction),
+    totalImported: rows.reduce((sum, r) => sum + r.result.importedCount, 0),
+    allSmartUnavailable: rows.every((r) => !r.smart.ok),
     deepLink: `/patient/${patientId}/portalSync`,
   };
 }

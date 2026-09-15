@@ -57,7 +57,30 @@ import {
   importSkFhirJsonExport,
   syncSkSampleToVault,
 } from '../../../services/interop/skConnector';
+import {
+  REMAINING_CANADA_CONNECTORS,
+} from '../../../services/interop/canadaRemainingConnectors';
 import type { InteropPullResult } from '../../../types/interop';
+import type { CanadianJurisdiction } from '../../../types/foiPayload';
+import type { FileImportProvinceKit } from '../../../services/interop/fileImportProvinceKit';
+
+const LEGACY_FHIR_IMPORTERS: Partial<
+  Record<
+    CanadianJurisdiction,
+    (opts: {
+      patientId: string;
+      jsonText: string;
+    }) => Promise<InteropPullResult & { parseError?: string }>
+  >
+> = {
+  SK: importSkFhirJsonExport,
+  AB: importAbFhirJsonExport,
+  BC: importBcFhirJsonExport,
+  ON: importOnFhirJsonExport,
+  QC: importQcFhirJsonExport,
+  MB: importMbFhirJsonExport,
+  NS: importNsFhirJsonExport,
+};
 
 export default function PortalSyncScreen() {
   const { id: patientId } = useLocalSearchParams<{ id: string }>();
@@ -71,6 +94,12 @@ export default function PortalSyncScreen() {
   const qcFacilities = useMemo(() => facilitiesForJurisdiction('QC'), []);
   const mbFacilities = useMemo(() => facilitiesForJurisdiction('MB'), []);
   const nsFacilities = useMemo(() => facilitiesForJurisdiction('NS'), []);
+  const nbFacilities = useMemo(() => facilitiesForJurisdiction('NB'), []);
+  const nlFacilities = useMemo(() => facilitiesForJurisdiction('NL'), []);
+  const peFacilities = useMemo(() => facilitiesForJurisdiction('PE'), []);
+  const ytFacilities = useMemo(() => facilitiesForJurisdiction('YT'), []);
+  const ntFacilities = useMemo(() => facilitiesForJurisdiction('NT'), []);
+  const nuFacilities = useMemo(() => facilitiesForJurisdiction('NU'), []);
   const sha = getFacilityById('sk-sha');
   const ahs = getFacilityById('ab-ahs');
   const bcgw = getFacilityById('bc-health-gateway');
@@ -92,6 +121,7 @@ export default function PortalSyncScreen() {
   const qcSmart = useMemo(() => getQcSmartAuthStatus(), []);
   const mbSmart = useMemo(() => getMbSmartAuthStatus(), []);
   const nsSmart = useMemo(() => getNsSmartAuthStatus(), []);
+  const remainingKits = useMemo(() => [...REMAINING_CANADA_CONNECTORS], []);
 
   async function onSyncSkSample() {
     if (!patientId) return;
@@ -233,9 +263,27 @@ export default function PortalSyncScreen() {
     }
   }
 
-  async function onImportFhirJsonFile(
-    jurisdiction: 'SK' | 'AB' | 'BC' | 'ON' | 'QC' | 'MB' | 'NS',
-  ) {
+  async function onSyncRemainingKit(kit: FileImportProvinceKit) {
+    if (!patientId) return;
+    setBusy(true);
+    try {
+      const { auth, result: pull } = await kit.syncSampleToVault({ patientId });
+      setResult(pull);
+      Alert.alert(
+        `${kit.jurisdiction} sample FHIR sync`,
+        `${auth.message}\nImported ${pull.importedCount} event(s).`,
+      );
+    } catch (err) {
+      Alert.alert(
+        `${kit.jurisdiction} connector failed`,
+        err instanceof Error ? err.message : 'Sync failed',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onImportFhirJsonFile(jurisdiction: CanadianJurisdiction) {
     if (!patientId) return;
     setBusy(true);
     try {
@@ -247,20 +295,12 @@ export default function PortalSyncScreen() {
       if (picked.canceled || !picked.assets?.length) return;
       const asset = picked.assets[0];
       const jsonText = await readAsStringAsync(asset.uri);
-      const pull =
-        jurisdiction === 'AB'
-          ? await importAbFhirJsonExport({ patientId, jsonText })
-          : jurisdiction === 'BC'
-            ? await importBcFhirJsonExport({ patientId, jsonText })
-            : jurisdiction === 'ON'
-              ? await importOnFhirJsonExport({ patientId, jsonText })
-              : jurisdiction === 'QC'
-                ? await importQcFhirJsonExport({ patientId, jsonText })
-                : jurisdiction === 'MB'
-                  ? await importMbFhirJsonExport({ patientId, jsonText })
-                  : jurisdiction === 'NS'
-                    ? await importNsFhirJsonExport({ patientId, jsonText })
-                    : await importSkFhirJsonExport({ patientId, jsonText });
+      const remaining = remainingKits.find((k) => k.jurisdiction === jurisdiction);
+      const pull = remaining
+        ? await remaining.importFhirJsonExport({ patientId, jsonText })
+        : await (
+            LEGACY_FHIR_IMPORTERS[jurisdiction] ?? importSkFhirJsonExport
+          )({ patientId, jsonText });
       setResult(pull);
       if (pull.parseError) {
         Alert.alert('FHIR import failed', pull.parseError);
@@ -547,6 +587,54 @@ export default function PortalSyncScreen() {
         ))}
       </View>
 
+      {remainingKits.map((kit) => {
+        const facility = getFacilityById(kit.authorityId);
+        const smart = kit.getSmartAuthStatus();
+        const playbook = kit.getExportPlaybook();
+        return (
+          <View key={kit.authorityId} style={styles.card}>
+            <Text style={styles.cardTitle}>
+              {facility?.name ?? kit.portal.label} ({kit.jurisdiction})
+            </Text>
+            <Text style={styles.body}>
+              Mode: {facility?.interop?.syncMode ?? 'FILE_IMPORT'}
+              {'\n'}
+              Portal: {kit.portal.label}
+              {'\n'}
+              SMART: {smart.readiness.availability} — {smart.message}
+            </Text>
+            <Pressable
+              style={[styles.cta, busy && styles.ctaDisabled]}
+              disabled={busy}
+              onPress={() => void onSyncRemainingKit(kit)}
+            >
+              {busy ? (
+                <ActivityIndicator color="#f4f7f5" />
+              ) : (
+                <Text style={styles.ctaText}>
+                  Run {kit.jurisdiction} sample FHIR sync
+                </Text>
+              )}
+            </Pressable>
+            <Pressable
+              style={[styles.secondary, busy && styles.ctaDisabled]}
+              disabled={busy}
+              onPress={() => void onImportFhirJsonFile(kit.jurisdiction)}
+            >
+              <Text style={styles.secondaryText}>
+                Import FHIR JSON ({kit.jurisdiction})
+              </Text>
+            </Pressable>
+            <Text style={styles.cardTitle}>{kit.portal.label} playbook</Text>
+            {playbook.map((step, index) => (
+              <Text key={step.id} style={styles.body}>
+                {index + 1}. {step.title} — {step.detail}
+              </Text>
+            ))}
+          </View>
+        );
+      })}
+
       {result ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Last pull</Text>
@@ -562,9 +650,7 @@ export default function PortalSyncScreen() {
         </View>
       ) : null}
 
-      <Text style={styles.section}>
-        SK / AB / BC / ON / QC / MB / NS custodians
-      </Text>
+      <Text style={styles.section}>All Canadian custodians</Text>
       {[
         ...skFacilities,
         ...abFacilities,
@@ -573,6 +659,12 @@ export default function PortalSyncScreen() {
         ...qcFacilities,
         ...mbFacilities,
         ...nsFacilities,
+        ...nbFacilities,
+        ...nlFacilities,
+        ...peFacilities,
+        ...ytFacilities,
+        ...ntFacilities,
+        ...nuFacilities,
       ].map((f) => (
         <View key={f.id} style={styles.row}>
           <Text style={styles.rowTitle}>{f.name}</Text>

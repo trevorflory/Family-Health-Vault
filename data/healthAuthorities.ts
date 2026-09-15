@@ -149,6 +149,24 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
   },
   // —— New Brunswick ——
   {
+    id: 'nb-myhealth',
+    name: 'MyHealthNB (provincial portal)',
+    jurisdiction: 'NB',
+    departmentName: 'MyHealthNB — Digital Health Account support',
+    addressLines: [
+      'Government of New Brunswick — MyHealthNB',
+      'See myhealth.gnb.ca for support channels',
+      'Fredericton, NB',
+    ],
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'MyHealthNB',
+      patientPortalUrl: 'https://myhealth.gnb.ca/s/',
+      notes:
+        'Primary path: MyHealth Records print/OCR (`importNbMyHealthLabText`). Optional FHIR JSON. FOI via Horizon/Vitalité. No public SMART — see data/canadaRemainingInterop.ts.',
+    },
+  },
+  {
     id: 'nb-horizon',
     name: 'Horizon Health Network',
     jurisdiction: 'NB',
@@ -161,6 +179,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '506-452-5200',
     email: 'health.records@horizonnb.ca',
+    interop: {
+      syncMode: 'MANUAL_ONLY',
+      portalLabel: 'MyHealthNB',
+      patientPortalUrl: 'https://myhealth.gnb.ca/s/',
+      notes:
+        'Facility FOI custodian. Prefer MyHealthNB FILE_IMPORT via nb-myhealth for labs; FOI here for charts portals lack.',
+    },
   },
   {
     id: 'nb-vitalite',
@@ -175,6 +200,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '506-862-4000',
     email: 'acces@vitalitenb.ca',
+    interop: {
+      syncMode: 'MANUAL_ONLY',
+      portalLabel: 'MyHealthNB',
+      patientPortalUrl: 'https://myhealth.gnb.ca/s/',
+      notes:
+        'Facility FOI custodian. Prefer MyHealthNB FILE_IMPORT via nb-myhealth for labs; FOI here for establishment charts.',
+    },
   },
   // —— Newfoundland and Labrador ——
   {
@@ -190,6 +222,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '709-777-6300',
     email: 'access@nlhealthservices.ca',
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'MyHealthNL',
+      patientPortalUrl: 'https://myhealthnl.ca/',
+      notes:
+        'Primary path: MyHealthNL (MyChart) test results → print/OCR (`importNlMyHealthLabText`). Optional FHIR JSON. FOI here when incomplete. No public SMART.',
+    },
   },
   // —— Nova Scotia ——
   {
@@ -227,6 +266,14 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '867-767-9054',
     email: 'atipp@gov.nt.ca',
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'NWT HealthNet / ATIPP access',
+      patientPortalUrl:
+        'https://www.hss.gov.nt.ca/en/services/nwt-healthnet/healthnet-viewer',
+      notes:
+        'HealthNet is clinician-facing. Provider copies or ATIPP → FILE_IMPORT (`importNtAccessLabText`). No public SMART.',
+    },
   },
   // —— Nunavut ——
   {
@@ -242,6 +289,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '867-975-5700',
     email: 'atipp@gov.nu.ca',
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'Nunavut Health ATIPP / records access',
+      patientPortalUrl: 'https://www.gov.nu.ca/health',
+      notes:
+        'No general consumer portal. Health-centre copies or ATIPP → FILE_IMPORT (`importNuAccessLabText`). No public SMART.',
+    },
   },
   // —— Ontario ——
   {
@@ -327,6 +381,14 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '902-368-6130',
     email: 'healthrecords@ihis.org',
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'MyHealthPEI',
+      patientPortalUrl:
+        'https://www.princeedwardisland.ca/en/service/log-into-myhealthpei',
+      notes:
+        'Primary path: MyHealthPEI download/print → OCR (`importPeMyHealthLabText`). Optional FHIR JSON. FOI here when incomplete. No public SMART.',
+    },
   },
   // —— Quebec ——
   {
@@ -419,6 +481,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '867-667-3673',
     email: 'atipp@yukon.ca',
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'Yukon health record access (ATIPP / YHC)',
+      patientPortalUrl: 'https://yukon.ca/en/health-and-wellness',
+      notes:
+        '1Health is clinician-facing. Care-team copies or ATIPP → FILE_IMPORT (`importYtAccessLabText`). FOI via HSS/YHC. No public SMART.',
+    },
   },
   {
     id: 'yt-yhc',
@@ -433,6 +502,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '867-393-8700',
     email: 'health.records@wgh.yk.ca',
+    interop: {
+      syncMode: 'MANUAL_ONLY',
+      portalLabel: 'Yukon health record access (ATIPP / YHC)',
+      patientPortalUrl: 'https://yukon.ca/en/health-and-wellness',
+      notes:
+        'Facility FOI custodian. Prefer yt-hss FILE_IMPORT path for ATIPP packages; FOI here for hospital charts.',
+    },
   },
 ];
 
