@@ -32,6 +32,7 @@ import { syncAbSampleToVault } from '../services/interop/abConnector';
 import { syncBcSampleToVault } from '../services/interop/bcConnector';
 import { syncOnSampleToVault } from '../services/interop/onConnector';
 import { syncQcSampleToVault } from '../services/interop/qcConnector';
+import { syncMbSampleToVault } from '../services/interop/mbConnector';
 import {
   SEED_CHILD_ID,
   SEED_DAD_ID,
@@ -472,6 +473,33 @@ export async function runQcCarnetConnectorSandbox(options?: {
 }): Promise<QcConnectorSandboxResult> {
   const patientId = options?.patientId ?? SEED_DAD_ID;
   const { result, smart, playbook } = await syncQcSampleToVault({
+    patientId,
+    now: options?.now ?? new Date('2026-09-15T12:00:00.000Z'),
+  });
+  return {
+    importedCount: result.importedCount,
+    jurisdiction: result.jurisdiction,
+    smartAvailable: smart.ok,
+    playbookSteps: playbook.length,
+    deepLink: `/patient/${patientId}/portalSync`,
+  };
+}
+
+export interface MbConnectorSandboxResult {
+  importedCount: number;
+  jurisdiction: string;
+  smartAvailable: boolean;
+  playbookSteps: number;
+  deepLink: string;
+}
+
+/** Exercise Manitoba eChart / Shared Health FILE_IMPORT sample FHIR sync. */
+export async function runMbEchartConnectorSandbox(options?: {
+  patientId?: string;
+  now?: Date;
+}): Promise<MbConnectorSandboxResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const { result, smart, playbook } = await syncMbSampleToVault({
     patientId,
     now: options?.now ?? new Date('2026-09-15T12:00:00.000Z'),
   });
