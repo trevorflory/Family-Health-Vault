@@ -1,7 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useDigestNotificationRouting } from '../hooks/useDigestNotificationRouting';
 
 export default function RootLayout() {
+  useDigestNotificationRouting();
+
   return (
     <>
       <StatusBar style="dark" />

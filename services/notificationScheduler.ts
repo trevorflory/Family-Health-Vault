@@ -123,7 +123,7 @@ export async function cancelDigestNotifications(): Promise<void> {
   );
 }
 
-/** Map a notification data payload to an Expo Router pathname. */
+/** Map a notification data payload to an Expo Router digest href. */
 export function resolveDigestPathFromNotificationData(
   data: Record<string, unknown> | undefined,
 ): '/digest/daily' | '/digest/weekly' | null {
@@ -133,4 +133,55 @@ export function resolveDigestPathFromNotificationData(
     return '/digest/weekly';
   }
   return null;
+}
+
+export interface DigestNotificationHref {
+  pathname: '/digest/daily' | '/digest/weekly';
+  params?: { caregiverId: string };
+}
+
+/**
+ * Build a router.push target from notification content.data
+ * (cold start or tap while app is open).
+ */
+export function digestHrefFromNotificationData(
+  data: Record<string, unknown> | undefined,
+): DigestNotificationHref | null {
+  const pathname = resolveDigestPathFromNotificationData(data);
+  if (!pathname) return null;
+  const caregiverId =
+    typeof data?.caregiverId === 'string' && data.caregiverId.trim()
+      ? data.caregiverId.trim()
+      : undefined;
+  return caregiverId ? { pathname, params: { caregiverId } } : { pathname };
+}
+
+/**
+ * Subscribe to digest notification taps and handle the last response (cold start).
+ * Returns an unsubscribe function.
+ */
+export function subscribeDigestNotificationRouting(
+  navigate: (href: DigestNotificationHref) => void,
+): () => void {
+  const handle = (data: Record<string, unknown> | undefined) => {
+    const href = digestHrefFromNotificationData(data);
+    if (href) navigate(href);
+  };
+
+  const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    handle(
+      response.notification.request.content.data as Record<string, unknown>,
+    );
+  });
+
+  void Notifications.getLastNotificationResponseAsync().then((response) => {
+    if (!response) return;
+    handle(
+      response.notification.request.content.data as Record<string, unknown>,
+    );
+  });
+
+  return () => {
+    sub.remove();
+  };
 }
