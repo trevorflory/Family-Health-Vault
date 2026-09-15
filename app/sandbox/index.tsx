@@ -27,10 +27,12 @@ import {
   runDadSbarSandbox,
   runLeoAgeOutSandbox,
   runSkHipaFoiSandbox,
+  runSkShaConnectorSandbox,
   runWeeklyDigestSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
   type OcrLabSandboxResult,
+  type SkConnectorSandboxResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
 } from '../../utils/sandboxFlows';
@@ -46,6 +48,7 @@ type BusyKey =
   | 'emergency'
   | 'ocr'
   | 'voice'
+  | 'skConnect'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -71,6 +74,8 @@ export default function SandboxHomeScreen() {
   const [ocrResult, setOcrResult] = useState<OcrLabSandboxResult | null>(null);
   const [voiceResult, setVoiceResult] =
     useState<VoiceDebriefSandboxResult | null>(null);
+  const [skConnectResult, setSkConnectResult] =
+    useState<SkConnectorSandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -167,6 +172,11 @@ export default function SandboxHomeScreen() {
   async function onVoice() {
     const result = await withBusy('voice', () => runDadVoiceDebriefSandbox());
     if (result) setVoiceResult(result);
+  }
+
+  async function onSkConnect() {
+    const result = await withBusy('skConnect', () => runSkShaConnectorSandbox());
+    if (result) setSkConnectResult(result);
   }
 
   return (
@@ -284,6 +294,30 @@ export default function SandboxHomeScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Saskatchewan HIPA PDF ready</Text>
           <Text style={styles.meta}>{foiUri}</Text>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="3b. SK / MySask connector"
+        subtitle="Sample FHIR sync + playbook (FILE_IMPORT; SMART not public)"
+        busy={busy === 'skConnect'}
+        disabled={busy !== null}
+        onPress={onSkConnect}
+      />
+      {skConnectResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>SK connector result</Text>
+          <Text style={styles.meta}>
+            Imported {skConnectResult.importedCount} · reimport{' '}
+            {skConnectResult.reimportImportedCount} · playbook steps{' '}
+            {skConnectResult.playbookSteps} · SMART{' '}
+            {skConnectResult.smartAvailable ? 'available' : 'not public'}
+          </Text>
+          <Link href={skConnectResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open SK portal sync →</Text>
+            </Pressable>
+          </Link>
         </View>
       ) : null}
 

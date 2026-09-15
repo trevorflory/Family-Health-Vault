@@ -21,11 +21,16 @@ jest.mock('../db/medicalEvents', () => ({
     rawText: input.rawText ?? '',
     parsedJson: JSON.stringify(input.parsed ?? {}),
     status: input.status ?? 'PENDING_REVIEW',
+    sourceType: input.sourceType ?? 'OCR',
+    sourceAuthorityId: input.sourceAuthorityId ?? null,
+    externalId: input.externalId ?? null,
+    lastSyncedAt: input.lastSyncedAt ?? null,
     createdAt: '2026-09-14T00:00:00.000Z',
     updatedAt: '2026-09-14T00:00:00.000Z',
   })),
   listMedicalEventsForPatient: jest.fn(async () => []),
   getMedicalEventById: jest.fn(async () => null),
+  findMedicalEventByExternalId: jest.fn(async () => null),
 }));
 
 jest.mock('../db/foiRequests', () => ({
@@ -59,6 +64,7 @@ import {
   runDadSbarSandbox,
   runLeoAgeOutSandbox,
   runSkHipaFoiSandbox,
+  runSkShaConnectorSandbox,
   runWeeklyDigestSandbox,
 } from '../utils/sandboxFlows';
 import { getDadSandboxMedicalEvents } from '../utils/mockSeeder';
@@ -176,5 +182,15 @@ describe('sandboxFlows core loops', () => {
     expect(result.record.kind).toBe('VISIT_DEBRIEF');
     expect(result.record.status).toBe('PENDING_REVIEW');
     expect(result.deepLink).toBe('/patient/pt-7801/voiceDebrief');
+  });
+
+  it('runSkShaConnectorSandbox imports sample FHIR and reports non-public SMART', async () => {
+    const result = await runSkShaConnectorSandbox({
+      now: new Date('2026-09-15T12:00:00.000Z'),
+    });
+    expect(result.importedCount).toBeGreaterThanOrEqual(4);
+    expect(result.smartAvailable).toBe(false);
+    expect(result.playbookSteps).toBeGreaterThanOrEqual(4);
+    expect(result.deepLink).toBe('/patient/pt-7801/portalSync');
   });
 });

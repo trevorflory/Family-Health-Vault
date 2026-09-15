@@ -27,6 +27,7 @@ import type { MedicalEventRecord, OcrParsedPayload, VisitDebriefParsed } from '.
 import type { FOIRequestPayload } from '../types/foiPayload';
 import type { SBARDocument } from '../types/sbar';
 import type { WeeklyDigestPayload } from '../types/digest';
+import { syncSkSampleToVault } from '../services/interop/skConnector';
 import {
   SEED_CHILD_ID,
   SEED_DAD_ID,
@@ -334,3 +335,39 @@ export async function runDadVoiceDebriefSandbox(options?: {
 }
 
 export { SHA_LAB_PDF_MOCK };
+
+export interface SkConnectorSandboxResult {
+  importedCount: number;
+  skippedCount: number;
+  syncedAt: string;
+  smartAvailable: boolean;
+  playbookSteps: number;
+  /** Second pass proves externalId upsert does not duplicate rows. */
+  reimportImportedCount: number;
+  deepLink: string;
+}
+
+/**
+ * Exercise Saskatchewan connector: sample FHIR sync + idempotent re-import.
+ */
+export async function runSkShaConnectorSandbox(options?: {
+  patientId?: string;
+  now?: Date;
+}): Promise<SkConnectorSandboxResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const now = options?.now ?? new Date('2026-09-15T12:00:00.000Z');
+  const first = await syncSkSampleToVault({ patientId, now });
+  const second = await syncSkSampleToVault({
+    patientId,
+    now: new Date(now.getTime() + 60_000),
+  });
+  return {
+    importedCount: first.result.importedCount,
+    skippedCount: first.result.skippedCount,
+    syncedAt: first.result.syncedAt,
+    smartAvailable: first.smart.ok,
+    playbookSteps: first.playbook.length,
+    reimportImportedCount: second.result.importedCount,
+    deepLink: `/patient/${patientId}/portalSync`,
+  };
+}

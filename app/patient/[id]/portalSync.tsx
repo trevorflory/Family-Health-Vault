@@ -1,3 +1,5 @@
+import * as DocumentPicker from 'expo-document-picker';
+import { readAsStringAsync } from 'expo-file-system/legacy';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -13,7 +15,12 @@ import {
   facilitiesForJurisdiction,
   getFacilityById,
 } from '../../../data/healthAuthorities';
-import { syncShaPilotSample } from '../../../services/interop/shaPilot';
+import {
+  getSkExportPlaybook,
+  getSkSmartAuthStatus,
+  importSkFhirJsonExport,
+  syncSkSampleToVault,
+} from '../../../services/interop/skConnector';
 import type { InteropPullResult } from '../../../types/interop';
 import type { CanadianJurisdiction } from '../../../types/foiPayload';
 
@@ -29,20 +36,55 @@ export default function PortalSyncScreen() {
     [],
   );
   const sha = getFacilityById('sk-sha');
+  const playbook = useMemo(() => getSkExportPlaybook(), []);
+  const smart = useMemo(() => getSkSmartAuthStatus(), []);
 
-  async function onSyncShaPilot() {
+  async function onSyncSample() {
     if (!patientId) return;
     setBusy(true);
     try {
-      const { auth, result: pull } = await syncShaPilotSample({ patientId });
+      const { auth, result: pull } = await syncSkSampleToVault({ patientId });
       setResult(pull);
       Alert.alert(
-        'SHA pilot sync complete',
-        `${auth.message}\nImported ${pull.importedCount} event(s). Review pending items in Upload / Insights.`,
+        'SK sample FHIR sync',
+        `${auth.message}\nImported ${pull.importedCount} event(s).`,
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sync failed';
-      Alert.alert('Portal sync failed', message);
+      Alert.alert('SK connector failed', message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onImportFhirJsonFile() {
+    if (!patientId) return;
+    setBusy(true);
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', 'text/plain', '*/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (picked.canceled || !picked.assets?.length) return;
+      const asset = picked.assets[0];
+      const jsonText = await readAsStringAsync(asset.uri);
+      const pull = await importSkFhirJsonExport({
+        patientId,
+        jsonText,
+      });
+      setResult(pull);
+      if (pull.parseError) {
+        Alert.alert('FHIR import failed', pull.parseError);
+      } else {
+        Alert.alert(
+          'FHIR JSON imported',
+          `Imported ${pull.importedCount} event(s) from ${asset.name ?? 'export'}.`,
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Import failed';
+      Alert.alert('FHIR file import failed', message);
     } finally {
       setBusy(false);
     }
@@ -50,34 +92,51 @@ export default function PortalSyncScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>Authority / portal sync</Text>
+      <Text style={styles.heading}>Saskatchewan connector</Text>
       <Text style={styles.lede}>
-        Connect to the clinical source of truth when a connector exists. Read /
-        import only — FOI remains the fallback when portals will not export.
+        MySaskHealthRecord is FILE_IMPORT today (PDF/lab export). Optional FHIR
+        JSON for partner/sandbox bundles. SMART is not public — FOI remains the
+        fallback.
       </Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>
-          {sha?.name ?? 'Saskatchewan Health Authority'} (pilot)
+          {sha?.name ?? 'Saskatchewan Health Authority'}
         </Text>
         <Text style={styles.body}>
           Mode: {sha?.interop?.syncMode ?? 'MANUAL_ONLY'}
           {'\n'}
           Portal: {sha?.interop?.portalLabel ?? '—'}
           {'\n'}
-          {sha?.interop?.notes}
+          SMART: {smart.readiness.availability} — {smart.message}
         </Text>
         <Pressable
           style={[styles.cta, busy && styles.ctaDisabled]}
           disabled={busy}
-          onPress={() => void onSyncShaPilot()}
+          onPress={() => void onSyncSample()}
         >
           {busy ? (
             <ActivityIndicator color="#f4f7f5" />
           ) : (
-            <Text style={styles.ctaText}>Run SHA sample FHIR sync</Text>
+            <Text style={styles.ctaText}>Run SK sample FHIR sync</Text>
           )}
         </Pressable>
+        <Pressable
+          style={[styles.secondary, busy && styles.ctaDisabled]}
+          disabled={busy}
+          onPress={() => void onImportFhirJsonFile()}
+        >
+          <Text style={styles.secondaryText}>Import FHIR JSON file</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>MySask export playbook</Text>
+        {playbook.map((step, index) => (
+          <Text key={step.id} style={styles.body}>
+            {index + 1}. {step.title} — {step.detail}
+          </Text>
+        ))}
       </View>
 
       {result ? (
@@ -110,9 +169,9 @@ export default function PortalSyncScreen() {
           <Text style={styles.secondaryText}>FOI fallback wizard</Text>
         </Pressable>
       </Link>
-      <Link href={`/patient/${patientId}/insights`} asChild>
+      <Link href={`/patient/${patientId}/uploadDoc`} asChild>
         <Pressable style={styles.secondary}>
-          <Text style={styles.secondaryText}>Open Insights</Text>
+          <Text style={styles.secondaryText}>Upload MySask lab PDF / OCR</Text>
         </Pressable>
       </Link>
     </ScrollView>
