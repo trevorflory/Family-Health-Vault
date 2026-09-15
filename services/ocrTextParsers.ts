@@ -1,11 +1,23 @@
 import type {
   LabResultParsed,
+  MedicalEventKind,
   OcrParsedPayload,
   PrescriptionParsed,
 } from '../types/db';
+import { enrichLabWithCode } from './labCodes';
 
 const LAB_LINE =
   /(?<test>eGFR|EGFR|Creatinine|Creat|HbA1c|A1C|Hemoglobin|WBC|RBC|Platelets|Sodium|Potassium|Chloride|Glucose|ALT|AST|ALP|Bilirubin|TSH|Cholesterol|LDL|HDL|Triglycerides)[^\d\n]{0,40}?(?<value>\d+(?:\.\d+)?)\s*(?<units>mL\/min\/1\.73m2|mL\/min|mg\/dL|mmol\/L|g\/dL|g\/L|U\/L|x10\^9\/L|x10\^12\/L|%|IU\/L)?(?:[^\n]{0,40}?(?:ref(?:erence)?(?:\s*range)?|range|normal)[:\s]*(?<ref>[\d.<>=\-\s\/\.]+))?/gi;
+
+const PORTAL_CHROME =
+  /\b(portal\s*screenshot|patient\s*portal|mychart|mysask(?:healthrecord)?|my\s*health\s*records|ehealth|care\s*connect|health\s*viewer|alberta\s*myhealth|ontario\s*health|telus\s*health|connectingontario)\b/i;
+
+/**
+ * True when OCR text looks like a provincial / vendor patient-portal capture.
+ */
+export function detectPortalScreenshot(rawText: string): boolean {
+  return PORTAL_CHROME.test(rawText ?? '');
+}
 
 /**
  * Extract lab test name / value / units / reference range from OCR text.
@@ -31,16 +43,18 @@ export function parseLabResults(rawText: string): LabResultParsed[] {
     if (seen.has(key)) continue;
     seen.add(key);
 
-    labs.push({
-      testName,
-      value,
-      units,
-      ...(referenceRange ? { referenceRange } : {}),
-    });
+    labs.push(
+      enrichLabWithCode({
+        testName,
+        value,
+        units,
+        ...(referenceRange ? { referenceRange } : {}),
+      }),
+    );
   }
 
   const compact =
-    /\b(eGFR|Creatinine|HbA1c|Glucose|Potassium|Sodium)\b\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*([A-Za-zµuμ\/\^0-9\.]+)?(?:\s*\((?:ref(?:erence)?(?:\s*range)?)?[:\s]*([^)]+)\))?/gi;
+    /\b(eGFR|Creatinine|HbA1c|Glucose|Potassium|Sodium|LDL|HDL)\b\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*([A-Za-zµuμ\/\^0-9\.]+)?(?:\s*\((?:ref(?:erence)?(?:\s*range)?)?[:\s]*([^)]+)\))?/gi;
   for (const match of text.matchAll(compact)) {
     const testName = normalizeLabName(match[1]);
     const value = match[2];
@@ -51,12 +65,14 @@ export function parseLabResults(rawText: string): LabResultParsed[] {
     const key = `${testName}|${value}|${units}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    labs.push({
-      testName,
-      value,
-      units,
-      ...(referenceRange ? { referenceRange } : {}),
-    });
+    labs.push(
+      enrichLabWithCode({
+        testName,
+        value,
+        units,
+        ...(referenceRange ? { referenceRange } : {}),
+      }),
+    );
   }
 
   return labs;
@@ -161,11 +177,19 @@ export function parseOcrDocument(rawText: string): OcrParsedPayload {
   const labs = parseLabResults(rawText);
   const prescriptions = parsePrescription(rawText);
   const parserNotes: string[] = [];
+  const isPortal = detectPortalScreenshot(rawText);
 
   let documentHint: OcrParsedPayload['documentHint'] = 'unknown';
-  if (labs.length && !prescriptions.length) documentHint = 'lab';
-  else if (prescriptions.length && !labs.length) documentHint = 'prescription';
-  else if (labs.length && prescriptions.length) {
+  if (isPortal) {
+    documentHint = 'portal';
+    parserNotes.push(
+      'Portal chrome detected — saved as PORTAL_SCREENSHOT; review extracted fields before confirm.',
+    );
+  } else if (labs.length && !prescriptions.length) {
+    documentHint = 'lab';
+  } else if (prescriptions.length && !labs.length) {
+    documentHint = 'prescription';
+  } else if (labs.length && prescriptions.length) {
     documentHint = 'unknown';
     parserNotes.push(
       'Both lab and prescription patterns matched — review carefully.',
@@ -181,4 +205,14 @@ export function parseOcrDocument(rawText: string): OcrParsedPayload {
   }
 
   return { documentHint, labs, prescriptions, parserNotes };
+}
+
+/** Infer MedicalEvents.kind from a verified OCR parse payload. */
+export function inferMedicalEventKind(
+  parsed: OcrParsedPayload,
+): MedicalEventKind {
+  if (parsed.documentHint === 'portal') return 'PORTAL_SCREENSHOT';
+  if (parsed.documentHint === 'lab') return 'LAB_RESULT';
+  if (parsed.documentHint === 'prescription') return 'PRESCRIPTION';
+  return 'UNSTRUCTURED_DOC';
 }

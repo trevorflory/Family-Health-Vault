@@ -26,6 +26,12 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     phone: '1-855-442-3888',
     fax: '780-735-1152',
     email: 'access.disclosure@ahs.ca',
+    interop: {
+      syncMode: 'MANUAL_ONLY',
+      portalLabel: 'Alberta MyHealth Records',
+      patientPortalUrl: 'https://myhealth.alberta.ca/',
+      notes: 'Use portal screenshot OCR or FOI until SMART FHIR partner lands.',
+    },
   },
   // —— British Columbia ——
   {
@@ -292,6 +298,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     phone: '1-877-800-0002',
     fax: '306-766-5970',
     email: 'access.information@saskhealthauthority.ca',
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'MySaskHealthRecord',
+      patientPortalUrl: 'https://services.ehealthsask.ca/MySaskHealthRecord',
+      notes:
+        'Phase B pilot: import FHIR/CCD export or run SHA sample sync in-app. FOI when export unavailable.',
+    },
   },
   // —— Yukon ——
   {

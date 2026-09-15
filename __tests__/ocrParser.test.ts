@@ -2,6 +2,7 @@ import {
   parseLabResults,
   parseOcrDocument,
   parsePrescription,
+  inferMedicalEventKind,
 } from '../services/ocrTextParsers';
 
 const LAB_SAMPLE = `
@@ -67,8 +68,9 @@ describe('ocrParser structured extractors', () => {
 
   it('parseOcrDocument classifies lab vs prescription payloads', () => {
     const labDoc = parseOcrDocument(LAB_SAMPLE);
-    expect(labDoc.documentHint).toBe('lab');
+    expect(labDoc.documentHint).toBe('portal');
     expect(labDoc.labs.length).toBeGreaterThan(0);
+    expect(labDoc.labs[0]?.code).toBe('EGFR');
     expect(labDoc.prescriptions).toHaveLength(0);
 
     const rxDoc = parseOcrDocument(RX_SAMPLE);
@@ -76,10 +78,15 @@ describe('ocrParser structured extractors', () => {
     expect(rxDoc.prescriptions.length).toBeGreaterThan(0);
   });
 
+  it('infers PORTAL_SCREENSHOT kind for portal chrome with labs', () => {
+    const parsed = parseOcrDocument(LAB_SAMPLE);
+    expect(inferMedicalEventKind(parsed)).toBe('PORTAL_SCREENSHOT');
+  });
+
   it('does not throw on empty or noisy OCR text', () => {
     expect(parseLabResults('')).toEqual([]);
     expect(parsePrescription('')).toEqual([]);
-    expect(parseOcrDocument('lorem ipsum portal chrome toolbar')).toMatchObject({
+    expect(parseOcrDocument('lorem ipsum toolbar')).toMatchObject({
       documentHint: 'unknown',
       labs: [],
       prescriptions: [],

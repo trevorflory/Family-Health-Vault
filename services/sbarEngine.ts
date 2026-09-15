@@ -160,10 +160,17 @@ export function summarizeMedicalEvents(events: MedicalEventRecord[]): {
     if (
       (event.kind === 'LAB_RESULT' ||
         event.kind === 'PRESCRIPTION' ||
+        event.kind === 'PORTAL_SCREENSHOT' ||
         event.kind === 'UNSTRUCTURED_DOC') &&
       isOcrPayload(payload)
     ) {
       sourceEventIds.push(event.id);
+      const sourceLabel =
+        event.sourceType === 'FHIR' || event.sourceType === 'FILE_IMPORT'
+          ? 'Custodian-synced'
+          : event.kind === 'PORTAL_SCREENSHOT'
+            ? 'Portal screenshot'
+            : 'OCR';
       if (payload.labs.length) {
         const labBits = payload.labs
           .slice(0, 4)
@@ -175,12 +182,16 @@ export function summarizeMedicalEvents(events: MedicalEventRecord[]): {
           )
           .join('; ');
         backgroundExtras.push(
-          `OCR lab values on file${pendingTag}: ${labBits}. Values are transcribed context only — clinician to interpret.`,
+          `${sourceLabel} lab values on file${pendingTag}: ${labBits}. Values are transcribed context only — clinician to interpret.`,
         );
         sourceEventSummaries.push(
-          `${event.status} lab OCR: ${payload.labs[0]?.testName ?? 'labs'}`,
+          `${event.status} lab ${sourceLabel}: ${payload.labs[0]?.testName ?? 'labs'}`,
         );
-        documentExtras.push('OCR lab upload / printout');
+        documentExtras.push(
+          event.kind === 'PORTAL_SCREENSHOT'
+            ? 'Portal screenshot / lab printout'
+            : 'OCR lab upload / printout',
+        );
       }
       if (payload.prescriptions.length) {
         const rxBits = payload.prescriptions

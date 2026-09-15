@@ -19,6 +19,7 @@ function makeEvent(
   partial: Pick<MedicalEventRecord, 'id' | 'patientId' | 'kind' | 'status'> & {
     rawText?: string;
     parsed: unknown;
+    sourceType?: MedicalEventRecord['sourceType'];
   },
 ): MedicalEventRecord {
   return {
@@ -29,6 +30,10 @@ function makeEvent(
     rawText: partial.rawText ?? '',
     parsedJson: JSON.stringify(partial.parsed),
     status: partial.status,
+    sourceType: partial.sourceType ?? 'OCR',
+    sourceAuthorityId: null,
+    externalId: null,
+    lastSyncedAt: null,
     createdAt: stamp,
     updatedAt: stamp,
   };

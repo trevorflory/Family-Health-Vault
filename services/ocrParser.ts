@@ -1,17 +1,19 @@
 import { createWorker, type Worker } from 'tesseract.js';
 import { saveMedicalEvent } from '../db/medicalEvents';
 import type {
-  MedicalEventKind,
   MedicalEventRecord,
   OcrParsedPayload,
 } from '../types/db';
 import {
+  inferMedicalEventKind,
   parseLabResults,
   parseOcrDocument,
   parsePrescription,
 } from './ocrTextParsers';
 
 export {
+  detectPortalScreenshot,
+  inferMedicalEventKind,
   parseLabResults,
   parseOcrDocument,
   parsePrescription,
@@ -54,18 +56,13 @@ export async function extractTextFromImage(
   return (text ?? '').trim();
 }
 
-function inferKind(parsed: OcrParsedPayload): MedicalEventKind {
-  if (parsed.documentHint === 'lab') return 'LAB_RESULT';
-  if (parsed.documentHint === 'prescription') return 'PRESCRIPTION';
-  return 'UNSTRUCTURED_DOC';
-}
-
 export interface IngestOcrOptions {
   patientId: string;
   imageSource: OcrImageSource;
   /** Optional pre-extracted text (skips Tesseract — used by tests / manual paste). */
   rawTextOverride?: string;
   status?: MedicalEventRecord['status'];
+  sourceAuthorityId?: string | null;
 }
 
 /**
@@ -83,13 +80,20 @@ export async function ingestDocumentFromImage(
     (await extractTextFromImage(options.imageSource));
 
   const parsed = parseOcrDocument(rawText);
+  if (options.sourceAuthorityId) {
+    parsed.sourceAuthorityId = options.sourceAuthorityId;
+  }
+
   const record = await saveMedicalEvent({
     patientId: options.patientId,
-    kind: inferKind(parsed),
+    kind: inferMedicalEventKind(parsed),
     sourceUri: options.imageSource,
     rawText,
     parsed,
     status: options.status ?? 'PENDING_REVIEW',
+    sourceType: 'OCR',
+    sourceAuthorityId:
+      options.sourceAuthorityId ?? parsed.sourceAuthorityId ?? null,
   });
 
   return { record, parsed, rawText };
@@ -104,14 +108,18 @@ export async function confirmParsedMedicalEvent(input: {
   rawText: string;
   parsed: OcrParsedPayload;
   eventId?: string;
+  sourceAuthorityId?: string | null;
 }): Promise<MedicalEventRecord> {
   return saveMedicalEvent({
     id: input.eventId,
     patientId: input.patientId,
-    kind: inferKind(input.parsed),
+    kind: inferMedicalEventKind(input.parsed),
     sourceUri: input.sourceUri,
     rawText: input.rawText,
     parsed: input.parsed,
     status: 'CONFIRMED',
+    sourceType: 'OCR',
+    sourceAuthorityId:
+      input.sourceAuthorityId ?? input.parsed.sourceAuthorityId ?? null,
   });
 }

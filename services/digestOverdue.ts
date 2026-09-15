@@ -36,12 +36,22 @@ export function overdueTasksFromFoiRequests(
     .sort((a, b) => b.ageDays - a.ageDays);
 }
 
+function eventHasStructuredLabs(event: MedicalEventRecord): boolean {
+  try {
+    const parsed = JSON.parse(event.parsedJson) as { labs?: unknown[] };
+    return Array.isArray(parsed.labs) && parsed.labs.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 function hasLabUploadOnFile(events: MedicalEventRecord[]): boolean {
-  return events.some(
-    (e) =>
-      e.kind === 'LAB_RESULT' &&
-      (e.status === 'CONFIRMED' || e.status === 'PENDING_REVIEW'),
-  );
+  return events.some((e) => {
+    if (e.status !== 'CONFIRMED' && e.status !== 'PENDING_REVIEW') return false;
+    if (e.kind === 'LAB_RESULT') return true;
+    if (e.kind === 'PORTAL_SCREENSHOT' && eventHasStructuredLabs(e)) return true;
+    return false;
+  });
 }
 
 /**

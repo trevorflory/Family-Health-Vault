@@ -38,6 +38,18 @@ export default function RootLayout() {
           options={{ title: 'Export Visit SBAR' }}
         />
         <Stack.Screen
+          name="patient/[id]/insights"
+          options={{ title: 'Visit Prep Insights' }}
+        />
+        <Stack.Screen
+          name="patient/[id]/portalSync"
+          options={{ title: 'Authority Sync' }}
+        />
+        <Stack.Screen
+          name="patient/[id]/askVault"
+          options={{ title: 'Ask My Vault' }}
+        />
+        <Stack.Screen
           name="patient/[id]/uploadDoc"
           options={{ title: 'Upload Document' }}
         />
