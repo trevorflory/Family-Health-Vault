@@ -118,6 +118,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '204-926-7000',
     email: 'phia@sharedhealthmb.ca',
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'eChart Manitoba / Shared Health access',
+      patientPortalUrl: 'https://echartmanitoba.ca/manitobans/forms/',
+      notes:
+        'Primary path: care-org portal print/OCR or eChart PHI lab copy (`importMbEchartLabText`). Optional FHIR JSON for partner/sandbox. FOI (PHIA) here or WRHA when incomplete. No public SMART — see data/mbInterop.ts.',
+    },
   },
   {
     id: 'mb-wrha',
@@ -132,6 +139,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '204-926-7000',
     email: 'privacy@wrha.mb.ca',
+    interop: {
+      syncMode: 'MANUAL_ONLY',
+      portalLabel: 'eChart Manitoba / Shared Health access',
+      patientPortalUrl: 'https://echartmanitoba.ca/manitobans/forms/',
+      notes:
+        'Facility FOI custodian. Prefer eChart PHI / Shared Health FILE_IMPORT via mb-shared for lab copies; FOI here for WRHA charts portals lack.',
+    },
   },
   // —— New Brunswick ——
   {

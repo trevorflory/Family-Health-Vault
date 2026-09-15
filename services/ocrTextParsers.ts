@@ -10,7 +10,7 @@ const LAB_LINE =
   /(?<test>eGFR|EGFR|Creatinine|Creat|HbA1c|A1C|Hemoglobin|WBC|RBC|Platelets|Sodium|Potassium|Chloride|Glucose|ALT|AST|ALP|Bilirubin|TSH|Cholesterol|LDL|HDL|Triglycerides)[^\d\n]{0,40}?(?<value>\d+(?:\.\d+)?)\s*(?<units>mL\/min\/1\.73m2|mL\/min|mg\/dL|mmol\/L|g\/dL|g\/L|U\/L|x10\^9\/L|x10\^12\/L|%|IU\/L)?(?:[^\n]{0,40}?(?:ref(?:erence)?(?:\s*range)?|range|normal)[:\s]*(?<ref>[\d.<>=\-\s\/\.]+))?/gi;
 
 const PORTAL_CHROME =
-  /\b(portal\s*screenshot|patient\s*portal|mychart|mysask(?:healthrecord)?|my\s*health\s*records|myhealth|ehealth|care\s*connect|health\s*viewer|alberta\s*myhealth|ontario\s*health|telus\s*health|connectingontario|netcare|health\s*gateway|healthgateway|carnet\s*sant[eé]|carnetsante)\b/i;
+  /\b(portal\s*screenshot|patient\s*portal|mychart|mysask(?:healthrecord)?|my\s*health\s*records|myhealth|ehealth|care\s*connect|health\s*viewer|alberta\s*myhealth|ontario\s*health|telus\s*health|connectingontario|netcare|health\s*gateway|healthgateway|carnet\s*sant[eé]|carnetsante|echart|shared\s*health|mycare\s*noona)\b/i;
 
 /**
  * True when OCR text looks like a provincial / vendor patient-portal capture.
