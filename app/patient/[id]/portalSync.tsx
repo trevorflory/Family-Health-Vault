@@ -16,30 +16,34 @@ import {
   getFacilityById,
 } from '../../../data/healthAuthorities';
 import {
+  getAbExportPlaybook,
+  getAbSmartAuthStatus,
+  importAbFhirJsonExport,
+  syncAbSampleToVault,
+} from '../../../services/interop/abConnector';
+import {
   getSkExportPlaybook,
   getSkSmartAuthStatus,
   importSkFhirJsonExport,
   syncSkSampleToVault,
 } from '../../../services/interop/skConnector';
 import type { InteropPullResult } from '../../../types/interop';
-import type { CanadianJurisdiction } from '../../../types/foiPayload';
-
-const PILOT_JURISDICTION: CanadianJurisdiction = 'SK';
 
 export default function PortalSyncScreen() {
   const { id: patientId } = useLocalSearchParams<{ id: string }>();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<InteropPullResult | null>(null);
 
-  const facilities = useMemo(
-    () => facilitiesForJurisdiction(PILOT_JURISDICTION),
-    [],
-  );
+  const skFacilities = useMemo(() => facilitiesForJurisdiction('SK'), []);
+  const abFacilities = useMemo(() => facilitiesForJurisdiction('AB'), []);
   const sha = getFacilityById('sk-sha');
-  const playbook = useMemo(() => getSkExportPlaybook(), []);
-  const smart = useMemo(() => getSkSmartAuthStatus(), []);
+  const ahs = getFacilityById('ab-ahs');
+  const skPlaybook = useMemo(() => getSkExportPlaybook(), []);
+  const abPlaybook = useMemo(() => getAbExportPlaybook(), []);
+  const skSmart = useMemo(() => getSkSmartAuthStatus(), []);
+  const abSmart = useMemo(() => getAbSmartAuthStatus(), []);
 
-  async function onSyncSample() {
+  async function onSyncSkSample() {
     if (!patientId) return;
     setBusy(true);
     try {
@@ -50,14 +54,36 @@ export default function PortalSyncScreen() {
         `${auth.message}\nImported ${pull.importedCount} event(s).`,
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Sync failed';
-      Alert.alert('SK connector failed', message);
+      Alert.alert(
+        'SK connector failed',
+        err instanceof Error ? err.message : 'Sync failed',
+      );
     } finally {
       setBusy(false);
     }
   }
 
-  async function onImportFhirJsonFile() {
+  async function onSyncAbSample() {
+    if (!patientId) return;
+    setBusy(true);
+    try {
+      const { auth, result: pull } = await syncAbSampleToVault({ patientId });
+      setResult(pull);
+      Alert.alert(
+        'AB sample FHIR sync',
+        `${auth.message}\nImported ${pull.importedCount} event(s).`,
+      );
+    } catch (err) {
+      Alert.alert(
+        'AB connector failed',
+        err instanceof Error ? err.message : 'Sync failed',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onImportFhirJsonFile(jurisdiction: 'SK' | 'AB') {
     if (!patientId) return;
     setBusy(true);
     try {
@@ -69,22 +95,24 @@ export default function PortalSyncScreen() {
       if (picked.canceled || !picked.assets?.length) return;
       const asset = picked.assets[0];
       const jsonText = await readAsStringAsync(asset.uri);
-      const pull = await importSkFhirJsonExport({
-        patientId,
-        jsonText,
-      });
+      const pull =
+        jurisdiction === 'AB'
+          ? await importAbFhirJsonExport({ patientId, jsonText })
+          : await importSkFhirJsonExport({ patientId, jsonText });
       setResult(pull);
       if (pull.parseError) {
         Alert.alert('FHIR import failed', pull.parseError);
       } else {
         Alert.alert(
           'FHIR JSON imported',
-          `Imported ${pull.importedCount} event(s) from ${asset.name ?? 'export'}.`,
+          `Imported ${pull.importedCount} event(s) from ${asset.name ?? 'export'} (${jurisdiction}).`,
         );
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Import failed';
-      Alert.alert('FHIR file import failed', message);
+      Alert.alert(
+        'FHIR file import failed',
+        err instanceof Error ? err.message : 'Import failed',
+      );
     } finally {
       setBusy(false);
     }
@@ -92,11 +120,10 @@ export default function PortalSyncScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>Saskatchewan connector</Text>
+      <Text style={styles.heading}>Provincial connectors</Text>
       <Text style={styles.lede}>
-        MySaskHealthRecord is FILE_IMPORT today (PDF/lab export). Optional FHIR
-        JSON for partner/sandbox bundles. SMART is not public — FOI remains the
-        fallback.
+        FILE_IMPORT today (portal PDF/lab export + optional FHIR JSON). SMART is
+        not public — FOI remains the fallback. No front-door IA redesign.
       </Text>
 
       <View style={styles.card}>
@@ -108,12 +135,12 @@ export default function PortalSyncScreen() {
           {'\n'}
           Portal: {sha?.interop?.portalLabel ?? '—'}
           {'\n'}
-          SMART: {smart.readiness.availability} — {smart.message}
+          SMART: {skSmart.readiness.availability} — {skSmart.message}
         </Text>
         <Pressable
           style={[styles.cta, busy && styles.ctaDisabled]}
           disabled={busy}
-          onPress={() => void onSyncSample()}
+          onPress={() => void onSyncSkSample()}
         >
           {busy ? (
             <ActivityIndicator color="#f4f7f5" />
@@ -124,15 +151,49 @@ export default function PortalSyncScreen() {
         <Pressable
           style={[styles.secondary, busy && styles.ctaDisabled]}
           disabled={busy}
-          onPress={() => void onImportFhirJsonFile()}
+          onPress={() => void onImportFhirJsonFile('SK')}
         >
-          <Text style={styles.secondaryText}>Import FHIR JSON file</Text>
+          <Text style={styles.secondaryText}>Import FHIR JSON (SK)</Text>
         </Pressable>
+        <Text style={styles.cardTitle}>MySask export playbook</Text>
+        {skPlaybook.map((step, index) => (
+          <Text key={step.id} style={styles.body}>
+            {index + 1}. {step.title} — {step.detail}
+          </Text>
+        ))}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>MySask export playbook</Text>
-        {playbook.map((step, index) => (
+        <Text style={styles.cardTitle}>
+          {ahs?.name ?? 'Alberta Health Services'}
+        </Text>
+        <Text style={styles.body}>
+          Mode: {ahs?.interop?.syncMode ?? 'MANUAL_ONLY'}
+          {'\n'}
+          Portal: {ahs?.interop?.portalLabel ?? '—'}
+          {'\n'}
+          SMART: {abSmart.readiness.availability} — {abSmart.message}
+        </Text>
+        <Pressable
+          style={[styles.cta, busy && styles.ctaDisabled]}
+          disabled={busy}
+          onPress={() => void onSyncAbSample()}
+        >
+          {busy ? (
+            <ActivityIndicator color="#f4f7f5" />
+          ) : (
+            <Text style={styles.ctaText}>Run AB sample FHIR sync</Text>
+          )}
+        </Pressable>
+        <Pressable
+          style={[styles.secondary, busy && styles.ctaDisabled]}
+          disabled={busy}
+          onPress={() => void onImportFhirJsonFile('AB')}
+        >
+          <Text style={styles.secondaryText}>Import FHIR JSON (AB)</Text>
+        </Pressable>
+        <Text style={styles.cardTitle}>MyHealth export playbook</Text>
+        {abPlaybook.map((step, index) => (
           <Text key={step.id} style={styles.body}>
             {index + 1}. {step.title} — {step.detail}
           </Text>
@@ -143,7 +204,8 @@ export default function PortalSyncScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Last pull</Text>
           <Text style={styles.body}>
-            Imported {result.importedCount} · skipped {result.skippedCount}
+            {result.authorityId} · Imported {result.importedCount} · skipped{' '}
+            {result.skippedCount}
             {'\n'}
             Synced at {result.syncedAt}
             {result.notes.length
@@ -153,8 +215,8 @@ export default function PortalSyncScreen() {
         </View>
       ) : null}
 
-      <Text style={styles.section}>SK custodians</Text>
-      {facilities.map((f) => (
+      <Text style={styles.section}>SK / AB custodians</Text>
+      {[...skFacilities, ...abFacilities].map((f) => (
         <View key={f.id} style={styles.row}>
           <Text style={styles.rowTitle}>{f.name}</Text>
           <Text style={styles.body}>
@@ -171,7 +233,7 @@ export default function PortalSyncScreen() {
       </Link>
       <Link href={`/patient/${patientId}/uploadDoc`} asChild>
         <Pressable style={styles.secondary}>
-          <Text style={styles.secondaryText}>Upload MySask lab PDF / OCR</Text>
+          <Text style={styles.secondaryText}>Upload portal lab PDF / OCR</Text>
         </Pressable>
       </Link>
     </ScrollView>
