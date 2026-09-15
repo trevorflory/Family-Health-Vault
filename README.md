@@ -115,7 +115,8 @@ Web uses `sessionStorage`-backed DB stubs (`db/*.web.ts`) so Sandbox seed surviv
 - `services/digestOverdue.ts` — pure overdue merge (DRAFT FOI >30d; labs clear missing-upload fixtures)
 - `db/medDoses.ts` — Mark Meds Given persistence
 - `app/patient/[id]/foiStatus.tsx` — vault-backed FOI status list (digest CTA target)
-- `services/notificationScheduler.ts` — local pushes at 7:00 AM daily and 4:00 PM Sundays (`expo-notifications`)
+- `services/notificationScheduler.ts` — local pushes at 7:00 AM daily and 4:00 PM Sundays (`expo-notifications`); tap / cold-start routing via `subscribeDigestNotificationRouting`
+- `hooks/useDigestNotificationRouting.ts` — wired from root `_layout` to open `/digest/daily` or `/digest/weekly`
 - `app/digest/daily.tsx` / `app/digest/weekly.tsx` — deep-link dashboards
 - `data/caregiverHousehold.ts` — demo household (Dad 78 Saskatoon, Leo 4 Regina, Self)
 

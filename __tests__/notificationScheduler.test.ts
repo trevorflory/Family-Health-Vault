@@ -3,6 +3,8 @@ const cancelScheduledNotificationAsync = jest.fn();
 const getPermissionsAsync = jest.fn();
 const requestPermissionsAsync = jest.fn();
 const setNotificationHandler = jest.fn();
+const addNotificationResponseReceivedListener = jest.fn();
+const getLastNotificationResponseAsync = jest.fn();
 
 jest.mock('expo-notifications', () => ({
   SchedulableTriggerInputTypes: {
@@ -16,14 +18,20 @@ jest.mock('expo-notifications', () => ({
   scheduleNotificationAsync: (...args: unknown[]) => scheduleNotificationAsync(...args),
   cancelScheduledNotificationAsync: (...args: unknown[]) =>
     cancelScheduledNotificationAsync(...args),
+  addNotificationResponseReceivedListener: (...args: unknown[]) =>
+    addNotificationResponseReceivedListener(...args),
+  getLastNotificationResponseAsync: (...args: unknown[]) =>
+    getLastNotificationResponseAsync(...args),
 }));
 
 import {
   DAILY_DIGEST_NOTIFICATION_ID,
   WEEKLY_DIGEST_NOTIFICATION_ID,
   dailyDigestDeepLink,
+  digestHrefFromNotificationData,
   resolveDigestPathFromNotificationData,
   scheduleDigestNotifications,
+  subscribeDigestNotificationRouting,
   weeklyDigestDeepLink,
 } from '../services/notificationScheduler';
 
@@ -33,8 +41,12 @@ describe('notificationScheduler', () => {
     cancelScheduledNotificationAsync.mockReset();
     getPermissionsAsync.mockReset();
     requestPermissionsAsync.mockReset();
+    addNotificationResponseReceivedListener.mockReset();
+    getLastNotificationResponseAsync.mockReset();
     cancelScheduledNotificationAsync.mockResolvedValue(undefined);
     getPermissionsAsync.mockResolvedValue({ granted: true });
+    getLastNotificationResponseAsync.mockResolvedValue(null);
+    addNotificationResponseReceivedListener.mockReturnValue({ remove: jest.fn() });
     scheduleNotificationAsync
       .mockResolvedValueOnce(DAILY_DIGEST_NOTIFICATION_ID)
       .mockResolvedValueOnce(WEEKLY_DIGEST_NOTIFICATION_ID);
@@ -76,12 +88,80 @@ describe('notificationScheduler', () => {
 
   it('resolves notification taps to digest routes', () => {
     expect(
-      resolveDigestPathFromNotificationData({ kind: 'daily', pathname: '/digest/daily' }),
+      resolveDigestPathFromNotificationData({
+        kind: 'daily',
+        pathname: '/digest/daily',
+      }),
     ).toBe('/digest/daily');
     expect(resolveDigestPathFromNotificationData({ kind: 'weekly' })).toBe(
       '/digest/weekly',
     );
     expect(resolveDigestPathFromNotificationData({})).toBeNull();
+  });
+
+  it('builds router hrefs including caregiverId params', () => {
+    expect(
+      digestHrefFromNotificationData({
+        kind: 'daily',
+        pathname: '/digest/daily',
+        caregiverId: 'cg-sandwich-01',
+      }),
+    ).toEqual({
+      pathname: '/digest/daily',
+      params: { caregiverId: 'cg-sandwich-01' },
+    });
+    expect(digestHrefFromNotificationData({ kind: 'weekly' })).toEqual({
+      pathname: '/digest/weekly',
+    });
+    expect(digestHrefFromNotificationData({})).toBeNull();
+  });
+
+  it('subscribes to taps and cold-start last response', async () => {
+    const navigate = jest.fn();
+    let listener:
+      | ((response: {
+          notification: {
+            request: { content: { data: Record<string, unknown> } };
+          };
+        }) => void)
+      | undefined;
+
+    addNotificationResponseReceivedListener.mockImplementation((fn) => {
+      listener = fn;
+      return { remove: jest.fn() };
+    });
+    getLastNotificationResponseAsync.mockResolvedValue({
+      notification: {
+        request: {
+          content: {
+            data: {
+              kind: 'weekly',
+              pathname: '/digest/weekly',
+              caregiverId: 'cg-sandwich-01',
+            },
+          },
+        },
+      },
+    });
+
+    const unsubscribe = subscribeDigestNotificationRouting(navigate);
+    await Promise.resolve();
+    expect(navigate).toHaveBeenCalledWith({
+      pathname: '/digest/weekly',
+      params: { caregiverId: 'cg-sandwich-01' },
+    });
+
+    listener?.({
+      notification: {
+        request: {
+          content: {
+            data: { kind: 'daily', pathname: '/digest/daily' },
+          },
+        },
+      },
+    });
+    expect(navigate).toHaveBeenCalledWith({ pathname: '/digest/daily' });
+    unsubscribe();
   });
 
   it('refuses to schedule without permission', async () => {
