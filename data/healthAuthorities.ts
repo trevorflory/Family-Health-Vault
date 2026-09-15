@@ -36,6 +36,25 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
   },
   // —— British Columbia ——
   {
+    id: 'bc-health-gateway',
+    name: 'BC Health Gateway (provincial portal)',
+    jurisdiction: 'BC',
+    departmentName: 'Health Gateway Support',
+    addressLines: [
+      'Ministry of Health — Health Gateway',
+      'PO Box 9650 Stn Prov Govt',
+      'Victoria, BC V8W 9P4',
+    ],
+    email: 'HealthGateway@gov.bc.ca',
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'BC Health Gateway',
+      patientPortalUrl: 'https://healthgateway.gov.bc.ca/',
+      notes:
+        'Primary path: Health Gateway Download records (PDF) → OCR or text import (`importBcHealthGatewayLabText`). Optional FHIR JSON for partner/sandbox bundles. FOI against treating HA (Fraser/VCH/Island) when portal incomplete. No public SMART endpoint — see data/bcInterop.ts.',
+    },
+  },
+  {
     id: 'bc-fraser',
     name: 'Fraser Health (BC)',
     jurisdiction: 'BC',
@@ -49,6 +68,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     phone: '604-587-4600',
     fax: '604-587-4666',
     email: 'foi@fraserhealth.ca',
+    interop: {
+      syncMode: 'MANUAL_ONLY',
+      portalLabel: 'BC Health Gateway',
+      patientPortalUrl: 'https://healthgateway.gov.bc.ca/',
+      notes:
+        'Facility FOI custodian. Prefer provincial Health Gateway download (`bc-health-gateway`) for lab/med exports; FOI here for charts Gateway lacks.',
+    },
   },
   {
     id: 'bc-vch',
