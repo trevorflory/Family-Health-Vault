@@ -27,7 +27,9 @@
 - `app/patient/[id]/emergencyPass.tsx` — emergency QR + wallet card
 - `app/patient/[id]/proxyAccess.tsx` — proxy roles, access log, age-out hand-off
 - `app/patient/[id]/insights.tsx` — biomarker trends / visit-prep Insights
-- `app/patient/[id]/portalSync.tsx` — health-authority / portal sync (SHA pilot)
+- `data/skInterop.ts` — MySask export playbook + SMART readiness (honest NOT_PUBLIC)
+- `services/interop/skConnector.ts` — Saskatchewan FILE_IMPORT connector (FHIR JSON + MySask lab text)
+- `app/patient/[id]/portalSync.tsx` — SK connector exercise surface (sample sync + JSON file import)
 - `app/patient/[id]/askVault.tsx` — SaMD-safe ask-my-vault over MedicalEvents
 - `services/interop/` — FHIR mapper + connector boundary (read/import only)
 - `types/interop.ts` — SMART/FHIR import + HealthAuthorityInterop metadata
@@ -43,6 +45,7 @@
 5. `PORTAL_SCREENSHOT` kind must be inferred for portal chrome OCR; structured labs still fold into digest/SBAR/Insights.
 6. Lab parsers attach stable internal codes + optional LOINC aliases via `services/labCodes.ts`.
 7. Ask-my-vault / educational restatements always use `SAMD_SYSTEM_PROMPT` posture — cite MedicalEvent ids; never diagnose or prescribe.
+8. Saskatchewan (`sk-sha` / MySask): public path is PDF/lab **FILE_IMPORT** (`importSkMySaskLabText`, `importSkFhirJsonExport`); do not claim a live SMART OAuth endpoint — see `SK_SMART_READINESS` in `data/skInterop.ts`.
 
 ## Proxy access rules
 
@@ -66,7 +69,7 @@
 ## QA sandbox rules
 
 1. `seedLocalSandboxData()` must create Dad (78) CKD/T2DM + 4 meds + SHA lab mock + visit debrief MedicalEvent and Child (4) SK vaccines.
-2. Sandbox actions exercise real services (digest daily/weekly, FOI, 811, SBAR via `compileSBAR`/`generateSBARPDF`, emergency pass, OCR parse+save, voice debrief extract+save) — no parallel hardcoded SBAR HTML path.
+2. Sandbox actions exercise real services (digest daily/weekly, FOI, 811, SBAR via `compileSBAR`/`generateSBARPDF`, emergency pass, OCR parse+save, voice debrief extract+save, SK connector sample sync) — no parallel hardcoded SBAR HTML path.
 3. Digest triggers must surface the push alert payload for verification (daily + weekly).
 4. Keep seed fixtures unit-testable without SQLite where possible (`getDadSandboxMedicalEvents`).
 5. OCR/voice sandbox runners may skip Tesseract/mic via text overrides but must use the same parsers and MedicalEvents persistence.

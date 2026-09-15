@@ -303,7 +303,7 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
       portalLabel: 'MySaskHealthRecord',
       patientPortalUrl: 'https://services.ehealthsask.ca/MySaskHealthRecord',
       notes:
-        'Phase B pilot: import FHIR/CCD export or run SHA sample sync in-app. FOI when export unavailable.',
+        'Primary path: MySask PDF/lab export → OCR or text import (`importSkMySaskLabText`). Optional FHIR JSON (`importSkFhirJsonExport`) for partner/sandbox bundles. FOI (HIPA) when portal incomplete. No public SMART endpoint — see data/skInterop.ts.',
     },
   },
   // —— Yukon ——
