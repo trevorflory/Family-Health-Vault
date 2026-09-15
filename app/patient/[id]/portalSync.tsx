@@ -34,6 +34,12 @@ import {
   syncOnSampleToVault,
 } from '../../../services/interop/onConnector';
 import {
+  getQcExportPlaybook,
+  getQcSmartAuthStatus,
+  importQcFhirJsonExport,
+  syncQcSampleToVault,
+} from '../../../services/interop/qcConnector';
+import {
   getSkExportPlaybook,
   getSkSmartAuthStatus,
   importSkFhirJsonExport,
@@ -50,18 +56,22 @@ export default function PortalSyncScreen() {
   const abFacilities = useMemo(() => facilitiesForJurisdiction('AB'), []);
   const bcFacilities = useMemo(() => facilitiesForJurisdiction('BC'), []);
   const onFacilities = useMemo(() => facilitiesForJurisdiction('ON'), []);
+  const qcFacilities = useMemo(() => facilitiesForJurisdiction('QC'), []);
   const sha = getFacilityById('sk-sha');
   const ahs = getFacilityById('ab-ahs');
   const bcgw = getFacilityById('bc-health-gateway');
   const onPortals = getFacilityById('on-patient-portals');
+  const qcCarnet = getFacilityById('qc-carnet-sante');
   const skPlaybook = useMemo(() => getSkExportPlaybook(), []);
   const abPlaybook = useMemo(() => getAbExportPlaybook(), []);
   const bcPlaybook = useMemo(() => getBcExportPlaybook(), []);
   const onPlaybook = useMemo(() => getOnExportPlaybook(), []);
+  const qcPlaybook = useMemo(() => getQcExportPlaybook(), []);
   const skSmart = useMemo(() => getSkSmartAuthStatus(), []);
   const abSmart = useMemo(() => getAbSmartAuthStatus(), []);
   const bcSmart = useMemo(() => getBcSmartAuthStatus(), []);
   const onSmart = useMemo(() => getOnSmartAuthStatus(), []);
+  const qcSmart = useMemo(() => getQcSmartAuthStatus(), []);
 
   async function onSyncSkSample() {
     if (!patientId) return;
@@ -143,7 +153,29 @@ export default function PortalSyncScreen() {
     }
   }
 
-  async function onImportFhirJsonFile(jurisdiction: 'SK' | 'AB' | 'BC' | 'ON') {
+  async function onSyncQcSample() {
+    if (!patientId) return;
+    setBusy(true);
+    try {
+      const { auth, result: pull } = await syncQcSampleToVault({ patientId });
+      setResult(pull);
+      Alert.alert(
+        'QC sample FHIR sync',
+        `${auth.message}\nImported ${pull.importedCount} event(s).`,
+      );
+    } catch (err) {
+      Alert.alert(
+        'QC connector failed',
+        err instanceof Error ? err.message : 'Sync failed',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onImportFhirJsonFile(
+    jurisdiction: 'SK' | 'AB' | 'BC' | 'ON' | 'QC',
+  ) {
     if (!patientId) return;
     setBusy(true);
     try {
@@ -162,7 +194,9 @@ export default function PortalSyncScreen() {
             ? await importBcFhirJsonExport({ patientId, jsonText })
             : jurisdiction === 'ON'
               ? await importOnFhirJsonExport({ patientId, jsonText })
-              : await importSkFhirJsonExport({ patientId, jsonText });
+              : jurisdiction === 'QC'
+                ? await importQcFhirJsonExport({ patientId, jsonText })
+                : await importSkFhirJsonExport({ patientId, jsonText });
       setResult(pull);
       if (pull.parseError) {
         Alert.alert('FHIR import failed', pull.parseError);
@@ -338,6 +372,43 @@ export default function PortalSyncScreen() {
         ))}
       </View>
 
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>
+          {qcCarnet?.name ?? 'Carnet santé Québec'}
+        </Text>
+        <Text style={styles.body}>
+          Mode: {qcCarnet?.interop?.syncMode ?? 'MANUAL_ONLY'}
+          {'\n'}
+          Portal: {qcCarnet?.interop?.portalLabel ?? '—'}
+          {'\n'}
+          SMART: {qcSmart.readiness.availability} — {qcSmart.message}
+        </Text>
+        <Pressable
+          style={[styles.cta, busy && styles.ctaDisabled]}
+          disabled={busy}
+          onPress={() => void onSyncQcSample()}
+        >
+          {busy ? (
+            <ActivityIndicator color="#f4f7f5" />
+          ) : (
+            <Text style={styles.ctaText}>Run QC sample FHIR sync</Text>
+          )}
+        </Pressable>
+        <Pressable
+          style={[styles.secondary, busy && styles.ctaDisabled]}
+          disabled={busy}
+          onPress={() => void onImportFhirJsonFile('QC')}
+        >
+          <Text style={styles.secondaryText}>Import FHIR JSON (QC)</Text>
+        </Pressable>
+        <Text style={styles.cardTitle}>Carnet santé export playbook</Text>
+        {qcPlaybook.map((step, index) => (
+          <Text key={step.id} style={styles.body}>
+            {index + 1}. {step.title} — {step.detail}
+          </Text>
+        ))}
+      </View>
+
       {result ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Last pull</Text>
@@ -353,18 +424,22 @@ export default function PortalSyncScreen() {
         </View>
       ) : null}
 
-      <Text style={styles.section}>SK / AB / BC / ON custodians</Text>
-      {[...skFacilities, ...abFacilities, ...bcFacilities, ...onFacilities].map(
-        (f) => (
-          <View key={f.id} style={styles.row}>
-            <Text style={styles.rowTitle}>{f.name}</Text>
-            <Text style={styles.body}>
-              {(f.interop?.syncMode ?? 'MANUAL_ONLY') +
-                (f.interop?.portalLabel ? ` · ${f.interop.portalLabel}` : '')}
-            </Text>
-          </View>
-        ),
-      )}
+      <Text style={styles.section}>SK / AB / BC / ON / QC custodians</Text>
+      {[
+        ...skFacilities,
+        ...abFacilities,
+        ...bcFacilities,
+        ...onFacilities,
+        ...qcFacilities,
+      ].map((f) => (
+        <View key={f.id} style={styles.row}>
+          <Text style={styles.rowTitle}>{f.name}</Text>
+          <Text style={styles.body}>
+            {(f.interop?.syncMode ?? 'MANUAL_ONLY') +
+              (f.interop?.portalLabel ? ` · ${f.interop.portalLabel}` : '')}
+          </Text>
+        </View>
+      ))}
 
       <Link href={`/patient/${patientId}/foiWizard`} asChild>
         <Pressable style={styles.secondary}>
