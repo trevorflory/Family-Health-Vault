@@ -30,6 +30,7 @@ import type { WeeklyDigestPayload } from '../types/digest';
 import { syncSkSampleToVault } from '../services/interop/skConnector';
 import { syncAbSampleToVault } from '../services/interop/abConnector';
 import { syncBcSampleToVault } from '../services/interop/bcConnector';
+import { syncOnSampleToVault } from '../services/interop/onConnector';
 import {
   SEED_CHILD_ID,
   SEED_DAD_ID,
@@ -416,6 +417,33 @@ export async function runBcHealthGatewayConnectorSandbox(options?: {
 }): Promise<BcConnectorSandboxResult> {
   const patientId = options?.patientId ?? SEED_DAD_ID;
   const { result, smart, playbook } = await syncBcSampleToVault({
+    patientId,
+    now: options?.now ?? new Date('2026-09-15T12:00:00.000Z'),
+  });
+  return {
+    importedCount: result.importedCount,
+    jurisdiction: result.jurisdiction,
+    smartAvailable: smart.ok,
+    playbookSteps: playbook.length,
+    deepLink: `/patient/${patientId}/portalSync`,
+  };
+}
+
+export interface OnConnectorSandboxResult {
+  importedCount: number;
+  jurisdiction: string;
+  smartAvailable: boolean;
+  playbookSteps: number;
+  deepLink: string;
+}
+
+/** Exercise Ontario MyChart/OLIS FILE_IMPORT sample FHIR sync. */
+export async function runOnPortalConnectorSandbox(options?: {
+  patientId?: string;
+  now?: Date;
+}): Promise<OnConnectorSandboxResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const { result, smart, playbook } = await syncOnSampleToVault({
     patientId,
     now: options?.now ?? new Date('2026-09-15T12:00:00.000Z'),
   });

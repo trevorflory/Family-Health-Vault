@@ -67,6 +67,7 @@ import {
   runSkShaConnectorSandbox,
   runAbMyHealthConnectorSandbox,
   runBcHealthGatewayConnectorSandbox,
+  runOnPortalConnectorSandbox,
   runWeeklyDigestSandbox,
 } from '../utils/sandboxFlows';
 import { getDadSandboxMedicalEvents } from '../utils/mockSeeder';
@@ -211,6 +212,15 @@ describe('sandboxFlows core loops', () => {
     });
     expect(result.importedCount).toBeGreaterThanOrEqual(4);
     expect(result.jurisdiction).toBe('BC');
+    expect(result.smartAvailable).toBe(false);
+  });
+
+  it('runOnPortalConnectorSandbox imports ON sample FHIR', async () => {
+    const result = await runOnPortalConnectorSandbox({
+      now: new Date('2026-09-15T12:00:00.000Z'),
+    });
+    expect(result.importedCount).toBeGreaterThanOrEqual(4);
+    expect(result.jurisdiction).toBe('ON');
     expect(result.smartAvailable).toBe(false);
   });
 });

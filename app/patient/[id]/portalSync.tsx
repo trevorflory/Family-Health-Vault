@@ -28,6 +28,12 @@ import {
   syncBcSampleToVault,
 } from '../../../services/interop/bcConnector';
 import {
+  getOnExportPlaybook,
+  getOnSmartAuthStatus,
+  importOnFhirJsonExport,
+  syncOnSampleToVault,
+} from '../../../services/interop/onConnector';
+import {
   getSkExportPlaybook,
   getSkSmartAuthStatus,
   importSkFhirJsonExport,
@@ -43,15 +49,19 @@ export default function PortalSyncScreen() {
   const skFacilities = useMemo(() => facilitiesForJurisdiction('SK'), []);
   const abFacilities = useMemo(() => facilitiesForJurisdiction('AB'), []);
   const bcFacilities = useMemo(() => facilitiesForJurisdiction('BC'), []);
+  const onFacilities = useMemo(() => facilitiesForJurisdiction('ON'), []);
   const sha = getFacilityById('sk-sha');
   const ahs = getFacilityById('ab-ahs');
   const bcgw = getFacilityById('bc-health-gateway');
+  const onPortals = getFacilityById('on-patient-portals');
   const skPlaybook = useMemo(() => getSkExportPlaybook(), []);
   const abPlaybook = useMemo(() => getAbExportPlaybook(), []);
   const bcPlaybook = useMemo(() => getBcExportPlaybook(), []);
+  const onPlaybook = useMemo(() => getOnExportPlaybook(), []);
   const skSmart = useMemo(() => getSkSmartAuthStatus(), []);
   const abSmart = useMemo(() => getAbSmartAuthStatus(), []);
   const bcSmart = useMemo(() => getBcSmartAuthStatus(), []);
+  const onSmart = useMemo(() => getOnSmartAuthStatus(), []);
 
   async function onSyncSkSample() {
     if (!patientId) return;
@@ -113,7 +123,27 @@ export default function PortalSyncScreen() {
     }
   }
 
-  async function onImportFhirJsonFile(jurisdiction: 'SK' | 'AB' | 'BC') {
+  async function onSyncOnSample() {
+    if (!patientId) return;
+    setBusy(true);
+    try {
+      const { auth, result: pull } = await syncOnSampleToVault({ patientId });
+      setResult(pull);
+      Alert.alert(
+        'ON sample FHIR sync',
+        `${auth.message}\nImported ${pull.importedCount} event(s).`,
+      );
+    } catch (err) {
+      Alert.alert(
+        'ON connector failed',
+        err instanceof Error ? err.message : 'Sync failed',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onImportFhirJsonFile(jurisdiction: 'SK' | 'AB' | 'BC' | 'ON') {
     if (!patientId) return;
     setBusy(true);
     try {
@@ -130,7 +160,9 @@ export default function PortalSyncScreen() {
           ? await importAbFhirJsonExport({ patientId, jsonText })
           : jurisdiction === 'BC'
             ? await importBcFhirJsonExport({ patientId, jsonText })
-            : await importSkFhirJsonExport({ patientId, jsonText });
+            : jurisdiction === 'ON'
+              ? await importOnFhirJsonExport({ patientId, jsonText })
+              : await importSkFhirJsonExport({ patientId, jsonText });
       setResult(pull);
       if (pull.parseError) {
         Alert.alert('FHIR import failed', pull.parseError);
@@ -269,6 +301,43 @@ export default function PortalSyncScreen() {
         ))}
       </View>
 
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>
+          {onPortals?.name ?? 'Ontario MyChart / OLIS'}
+        </Text>
+        <Text style={styles.body}>
+          Mode: {onPortals?.interop?.syncMode ?? 'MANUAL_ONLY'}
+          {'\n'}
+          Portal: {onPortals?.interop?.portalLabel ?? '—'}
+          {'\n'}
+          SMART: {onSmart.readiness.availability} — {onSmart.message}
+        </Text>
+        <Pressable
+          style={[styles.cta, busy && styles.ctaDisabled]}
+          disabled={busy}
+          onPress={() => void onSyncOnSample()}
+        >
+          {busy ? (
+            <ActivityIndicator color="#f4f7f5" />
+          ) : (
+            <Text style={styles.ctaText}>Run ON sample FHIR sync</Text>
+          )}
+        </Pressable>
+        <Pressable
+          style={[styles.secondary, busy && styles.ctaDisabled]}
+          disabled={busy}
+          onPress={() => void onImportFhirJsonFile('ON')}
+        >
+          <Text style={styles.secondaryText}>Import FHIR JSON (ON)</Text>
+        </Pressable>
+        <Text style={styles.cardTitle}>MyChart / OLIS export playbook</Text>
+        {onPlaybook.map((step, index) => (
+          <Text key={step.id} style={styles.body}>
+            {index + 1}. {step.title} — {step.detail}
+          </Text>
+        ))}
+      </View>
+
       {result ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Last pull</Text>
@@ -284,16 +353,18 @@ export default function PortalSyncScreen() {
         </View>
       ) : null}
 
-      <Text style={styles.section}>SK / AB / BC custodians</Text>
-      {[...skFacilities, ...abFacilities, ...bcFacilities].map((f) => (
-        <View key={f.id} style={styles.row}>
-          <Text style={styles.rowTitle}>{f.name}</Text>
-          <Text style={styles.body}>
-            {(f.interop?.syncMode ?? 'MANUAL_ONLY') +
-              (f.interop?.portalLabel ? ` · ${f.interop.portalLabel}` : '')}
-          </Text>
-        </View>
-      ))}
+      <Text style={styles.section}>SK / AB / BC / ON custodians</Text>
+      {[...skFacilities, ...abFacilities, ...bcFacilities, ...onFacilities].map(
+        (f) => (
+          <View key={f.id} style={styles.row}>
+            <Text style={styles.rowTitle}>{f.name}</Text>
+            <Text style={styles.body}>
+              {(f.interop?.syncMode ?? 'MANUAL_ONLY') +
+                (f.interop?.portalLabel ? ` · ${f.interop.portalLabel}` : '')}
+            </Text>
+          </View>
+        ),
+      )}
 
       <Link href={`/patient/${patientId}/foiWizard`} asChild>
         <Pressable style={styles.secondary}>

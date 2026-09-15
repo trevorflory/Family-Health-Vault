@@ -224,6 +224,25 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
   },
   // —— Ontario ——
   {
+    id: 'on-patient-portals',
+    name: 'Ontario MyChart / OLIS (provincial portal path)',
+    jurisdiction: 'ON',
+    departmentName: 'Patient portal FILE_IMPORT (not a single custodian)',
+    addressLines: [
+      'Ontario Health / hospital MyChart programs',
+      'Use treating facility FOI contacts for chart packages',
+      'Toronto, ON',
+    ],
+    email: 'privacy@ontariohealth.ca',
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'Ontario MyChart / OLIS',
+      patientPortalUrl: 'https://www.ontariohealth.ca/',
+      notes:
+        'Fragmented FILE_IMPORT: hospital MyChart Test Results PDF + OLIS. Optional FHIR JSON for partner/sandbox. FOI (PHIPA) via UHN/Sunnybrook/OH when portals incomplete. No public provincial SMART — see data/onInterop.ts.',
+    },
+  },
+  {
     id: 'on-uhn',
     name: 'University Health Network (ON)',
     jurisdiction: 'ON',
@@ -237,6 +256,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     phone: '416-340-3131',
     fax: '416-340-4186',
     email: 'health.records@uhn.ca',
+    interop: {
+      syncMode: 'MANUAL_ONLY',
+      portalLabel: 'myUHN / MyChart + OLIS',
+      patientPortalUrl: 'https://www.myuhn.ca/',
+      notes:
+        'Facility FOI custodian. Prefer MyChart/OLIS download via on-patient-portals connector for lab exports; FOI here for charts portals lack.',
+    },
   },
   {
     id: 'on-oh',
