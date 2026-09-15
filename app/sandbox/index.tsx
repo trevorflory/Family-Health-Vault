@@ -33,6 +33,7 @@ import {
   runOnPortalConnectorSandbox,
   runQcCarnetConnectorSandbox,
   runMbEchartConnectorSandbox,
+  runNsYourHealthConnectorSandbox,
   runWeeklyDigestSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
@@ -43,6 +44,7 @@ import {
   type OnConnectorSandboxResult,
   type QcConnectorSandboxResult,
   type MbConnectorSandboxResult,
+  type NsConnectorSandboxResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
 } from '../../utils/sandboxFlows';
@@ -64,6 +66,7 @@ type BusyKey =
   | 'onConnect'
   | 'qcConnect'
   | 'mbConnect'
+  | 'nsConnect'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -101,6 +104,8 @@ export default function SandboxHomeScreen() {
     useState<QcConnectorSandboxResult | null>(null);
   const [mbConnectResult, setMbConnectResult] =
     useState<MbConnectorSandboxResult | null>(null);
+  const [nsConnectResult, setNsConnectResult] =
+    useState<NsConnectorSandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -237,6 +242,13 @@ export default function SandboxHomeScreen() {
       runMbEchartConnectorSandbox(),
     );
     if (result) setMbConnectResult(result);
+  }
+
+  async function onNsConnect() {
+    const result = await withBusy('nsConnect', () =>
+      runNsYourHealthConnectorSandbox(),
+    );
+    if (result) setNsConnectResult(result);
   }
 
   return (
@@ -489,6 +501,29 @@ export default function SandboxHomeScreen() {
             {mbConnectResult.smartAvailable ? 'available' : 'not public'}
           </Text>
           <Link href={mbConnectResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open portal sync →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="3h. NS / YourHealthNS connector"
+        subtitle="Sample FHIR sync + YourHealthNS Records playbook (FILE_IMPORT)"
+        busy={busy === 'nsConnect'}
+        disabled={busy !== null}
+        onPress={onNsConnect}
+      />
+      {nsConnectResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>NS connector result</Text>
+          <Text style={styles.meta}>
+            Imported {nsConnectResult.importedCount} · {nsConnectResult.jurisdiction}{' '}
+            · playbook {nsConnectResult.playbookSteps} · SMART{' '}
+            {nsConnectResult.smartAvailable ? 'available' : 'not public'}
+          </Text>
+          <Link href={nsConnectResult.deepLink} asChild>
             <Pressable>
               <Text style={styles.link}>Open portal sync →</Text>
             </Pressable>

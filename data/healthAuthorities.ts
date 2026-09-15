@@ -205,6 +205,13 @@ export const HEALTH_AUTHORITIES: HealthAuthorityContact[] = [
     ],
     phone: '1-902-473-2700',
     email: 'privacy@nshealth.ca',
+    interop: {
+      syncMode: 'FILE_IMPORT',
+      portalLabel: 'YourHealthNS',
+      patientPortalUrl: 'https://yourhealthns.ca/',
+      notes:
+        'Primary path: YourHealthNS Records / Patient Summary → print/OCR (`importNsYourHealthLabText`). Optional FHIR JSON for partner/sandbox. FOI here when incomplete. No public SMART — see data/nsInterop.ts.',
+    },
   },
   // —— Northwest Territories ——
   {
