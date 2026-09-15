@@ -1,5 +1,6 @@
 import { getPatientVaultProfile } from '../data/patientVault';
 import type {
+  DispatcherCue,
   MedicationRecord,
   PatientVaultProfile,
   Triage811Output,
@@ -66,35 +67,76 @@ function formatConditions(conditions: string[] | null | undefined): string {
   return conditions.filter((c) => c?.trim()).join(', ') || 'none listed';
 }
 
+function formatSymptomList(currentSymptoms: string[]): string {
+  return (
+    currentSymptoms.map((s) => s.trim()).filter(Boolean).join('; ') ||
+    'symptoms as discussed'
+  );
+}
+
+/**
+ * Opening line when the nurse asks why you are calling — short; details live
+ * on the dispatcher cue sheet so the caregiver can answer their script.
+ */
 function buildSpokenIntro(
   profile: PatientVaultProfile,
   currentSymptoms: string[],
 ): string {
-  const symptoms =
-    currentSymptoms.map((s) => s.trim()).filter(Boolean).join(' and ') ||
-    'symptoms as discussed';
-  const historyParts: string[] = [];
+  const symptoms = formatSymptomList(currentSymptoms);
+  const name = profile.preferredName?.trim() || profile.fullName;
+  return `I'm calling about my ${profile.ageYears}-year-old ${sexPhrase(profile.sex)} ${profile.relationshipLabel}, ${name}. Today I'm concerned about: ${symptoms}. I have their history and medications ready if you need them.`;
+}
+
+/**
+ * Mirror a typical 811 dispatcher script: they ask; caregiver answers from vault.
+ * SaMD: factual restatement only — no acuity, diagnosis, or treatment advice.
+ */
+export function buildDispatcherCueSheet(
+  profile: PatientVaultProfile,
+  currentSymptoms: string[],
+): Triage811Output['dispatcherCueSheet'] {
+  const name = profile.preferredName?.trim()
+    ? `${profile.fullName} (goes by ${profile.preferredName.trim()})`
+    : profile.fullName;
   const conditions = formatConditions(profile.chronicConditions);
-  if (conditions !== 'none listed') {
-    historyParts.push(conditions);
-  }
   const meds = formatActiveMedications(profile.activeMedications);
-  if (meds !== 'none listed') {
-    historyParts.push(`taking ${meds}`);
-  }
   const recent = (profile.recentEvents ?? [])
     .map((e) => e.trim())
     .filter(Boolean);
-  if (recent.length) {
-    historyParts.push(recent.join('; '));
-  }
+  const recentClause =
+    recent.length > 0 ? recent.join('; ') : 'none listed in the vault';
+  const markers = (profile.historicalMarkers ?? [])
+    .map((m) => m.trim())
+    .filter(Boolean);
+  const markerClause =
+    markers.length > 0
+      ? ` Extra context on file: ${markers.slice(0, 2).join('; ')}.`
+      : '';
 
-  const historyClause =
-    historyParts.length > 0
-      ? ` Relevant history: ${historyParts.join(', ')}.`
-      : ' No chronic conditions or medications listed in the vault.';
+  const who: DispatcherCue = {
+    dispatcherAsks: 'Who are you calling about? What is their age and relationship to you?',
+    readyAnswer: `${name}, ${profile.ageYears}-year-old ${sexPhrase(profile.sex)}, my ${profile.relationshipLabel}.`,
+  };
 
-  return `I'm calling about my ${profile.ageYears}-year-old ${sexPhrase(profile.sex)} ${profile.relationshipLabel}. Acute symptoms: ${symptoms}.${historyClause}`;
+  const whatsHappening: DispatcherCue = {
+    dispatcherAsks:
+      'What is happening right now? What symptoms are you seeing, and when did they start?',
+    readyAnswer: `Current concerns: ${formatSymptomList(currentSymptoms)}. Exact onset time is not recorded in the vault — share what you observed today.`,
+  };
+
+  const historyMeds: DispatcherCue = {
+    dispatcherAsks:
+      'Do they have any medical conditions or take medications regularly?',
+    readyAnswer: `Conditions on file: ${conditions}. Medications: ${meds}.`,
+  };
+
+  const recentContext: DispatcherCue = {
+    dispatcherAsks:
+      'Has anything changed recently — illness, hospital visit, falls, or new symptoms?',
+    readyAnswer: `Recent events on file: ${recentClause}.${markerClause}`,
+  };
+
+  return [who, whatsHappening, historyMeds, recentContext];
 }
 
 /**
@@ -117,7 +159,7 @@ export function deriveHistoricalRedFlags(
       symptomBlob.includes('urine'))
   ) {
     flags.push(
-      'Patient has chronic kidney disease on file; share fluid intake/output details with the nurse',
+      'Patient has chronic kidney disease on file; share fluid intake/output details when the nurse asks about liquids or urine',
     );
   }
 
@@ -126,7 +168,7 @@ export function deriveHistoricalRedFlags(
     (symptomBlob.includes('confusion') || symptomBlob.includes('fever'))
   ) {
     flags.push(
-      'Diabetes on file with acute confusion/fever — mention last known oral intake and usual glucose pattern to the nurse',
+      'Diabetes on file with acute confusion/fever — when asked, mention last known oral intake and usual glucose pattern',
     );
   }
 
@@ -135,7 +177,7 @@ export function deriveHistoricalRedFlags(
     (symptomBlob.includes('breath') || symptomBlob.includes('cough'))
   ) {
     flags.push(
-      'Asthma on file; note inhaler use today when speaking with the nurse',
+      'Asthma on file; when asked about breathing treatments, note inhaler use today',
     );
   }
 
@@ -144,7 +186,8 @@ export function deriveHistoricalRedFlags(
 }
 
 /**
- * Caregiver questions for the nurse — solicit clinical judgment; do not assert acuity.
+ * Optional clarifying questions after the nurse finishes their script —
+ * solicit clinical judgment; do not assert acuity.
  */
 export function buildQuestionsToAskNurse(
   profile: PatientVaultProfile,
@@ -184,7 +227,7 @@ export function buildQuestionsToAskNurse(
 
 /**
  * Synthesize a caregiver-facing 811 script from vault history + acute symptoms.
- * SaMD safeguard: returns contextual summary only — no diagnosis or prescriptions.
+ * Framed for answering the nurse’s dispatcher script, not diagnosing.
  */
 export async function generate811Script(
   patientId: string,
@@ -201,6 +244,7 @@ export async function generate811Script(
 
   return {
     spokenIntroScript: buildSpokenIntro(profile, symptoms),
+    dispatcherCueSheet: buildDispatcherCueSheet(profile, symptoms),
     historicalRedFlags: deriveHistoricalRedFlags(profile, symptoms),
     questionsToAskNurse: buildQuestionsToAskNurse(profile, symptoms),
     regulatoryNotice: REGULATORY_NOTICE,

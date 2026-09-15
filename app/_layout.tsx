@@ -23,6 +23,10 @@ export default function RootLayout() {
           options={{ title: 'FOI Record Request' }}
         />
         <Stack.Screen
+          name="patient/[id]/foiStatus"
+          options={{ title: 'FOI Status' }}
+        />
+        <Stack.Screen
           name="patient/[id]/call811Prep"
           options={{ title: '811 Call Prep' }}
         />

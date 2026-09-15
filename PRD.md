@@ -49,7 +49,8 @@ This Expo/React Native healthcare companion helps adult sandwich-generation care
 ### Goals
 
 - Synthesize patient vault history (age, sex, chronic conditions, active medications, recent events) with caregiver-selected acute symptoms.
-- Produce a ~30-second verbatim spoken intro script, historical context markers, and exactly three questions for the 811 nurse.
+- Frame the summary for a typical 811 dispatcher script: the nurse asks; the caregiver answers from vault-backed cue cards (who / what’s happening / history+meds / recent context).
+- Produce a short spoken opening, a 4-cue dispatcher cue sheet, historical context markers, and exactly three clarifying questions after the nurse’s script.
 - Offer a high-stress teleprompter UI with one-touch `tel:811` calling via `expo-linking`.
 
 ### Non-goals
@@ -73,18 +74,29 @@ This Expo/React Native healthcare companion helps adult sandwich-generation care
 
 ### Goals
 
-- Generate jurisdiction-correct FOI request PDFs for Ontario, Saskatchewan, Alberta, and British Columbia.
+- Generate jurisdiction-correct FOI / access request PDFs for **all 13 Canadian provinces and territories**.
 - Guide users through a four-step wizard: jurisdiction/facility → scope → proof of authority → preview & dispatch.
 - Persist request drafts and dispatched records locally (SQLite) with status `DRAFT` or `DISPATCHED`.
 
 ### Jurisdictions & Governing Acts
 
-| Province | Act | Notes |
-|----------|-----|-------|
-| Ontario (ON) | PHIPA — Personal Health Information Protection Act | Custodian access requests |
-| Saskatchewan (SK) | HIPA — Health Information Protection Act | Trustee access requests |
-| Alberta (AB) | HIA — Health Information Act | Custodian access requests |
-| British Columbia (BC) | FIPPA / PIPA | Public body (FIPPA) or private (PIPA) pathways |
+| Code | Region | Act (template short name) |
+|------|--------|---------------------------|
+| AB | Alberta | HIA — Health Information Act |
+| BC | British Columbia | FIPPA / PIPA |
+| MB | Manitoba | PHIA — Personal Health Information Act |
+| NB | New Brunswick | PHIPAA — Personal Health Information Privacy and Access Act |
+| NL | Newfoundland and Labrador | PHIA / ATIPPA, 2015 |
+| NS | Nova Scotia | PHIA — Personal Health Information Act |
+| NT | Northwest Territories | Health Information Act / ATIPP |
+| NU | Nunavut | ATIPP |
+| ON | Ontario | PHIPA — Personal Health Information Protection Act |
+| PE | Prince Edward Island | Health Information Act / FOIPP |
+| QC | Quebec | LSSSS / AIPDP |
+| SK | Saskatchewan | HIPA — Health Information Protection Act |
+| YT | Yukon | HIPMA / ATIPP |
+
+Facility mailing templates live in `data/healthAuthorities.ts` (≥1 per jurisdiction). Wizard catalog: `data/foiJurisdictions.ts`.
 
 ### Record Scope Options
 
@@ -101,7 +113,7 @@ Table: `FOIRequests`
 |--------|------|-------|
 | id | TEXT PK | UUID |
 | patientId | TEXT | Route patient id |
-| jurisdiction | TEXT | ON \| SK \| AB \| BC |
+| jurisdiction | TEXT | AB \| BC \| MB \| NB \| NL \| NS \| NT \| NU \| ON \| PE \| QC \| SK \| YT |
 | facilityId | TEXT | Health authority template id |
 | payloadJson | TEXT | Serialized `FOIRequestPayload` |
 | pdfUri | TEXT | expo-print output URI/base64 |

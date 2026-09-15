@@ -6,6 +6,15 @@ import {
   DEMO_SIBLING_NAME,
 } from '../data/proxyGrants';
 import { DEMO_CAREGIVER_ID } from '../data/caregiverHousehold';
+import {
+  clearAccessLog,
+  getProxyGrantById,
+  insertAccessLogEntry,
+  listAccessLogForPatient,
+  listProxyGrantsForPatient,
+  replaceAllProxyGrants,
+  saveProxyGrant,
+} from '../db/proxyAccess';
 import type {
   AccessLogEntry,
   AgeOutEvaluation,
@@ -19,9 +28,6 @@ import {
   DEFAULT_CONSENT_AGE_YEARS,
   ROLE_PERMISSIONS,
 } from '../types/proxyAccess';
-
-let grants: ProxyGrant[] = buildDemoProxyGrants();
-let accessLog: AccessLogEntry[] = [];
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -38,26 +44,38 @@ function effectiveStatus(grant: ProxyGrant, now: Date): ProxyGrantStatus {
   return 'ACTIVE';
 }
 
-export function resetProxyAccessStore(now: Date = new Date()): void {
-  grants = buildDemoProxyGrants(now);
-  accessLog = [];
+/** Seed demo grants and clear the access log (demo / tests only). */
+export async function resetProxyAccessStore(
+  now: Date = new Date(),
+): Promise<void> {
+  await replaceAllProxyGrants(buildDemoProxyGrants(now));
+  await clearAccessLog();
 }
 
-export function listProxyGrants(patientId?: string): ProxyGrant[] {
-  const rows = patientId
-    ? grants.filter((g) => g.patientId === patientId)
-    : [...grants];
-  return rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+/** Ensure at least demo grants exist (first open of empty vault). */
+export async function ensureProxyAccessSeeded(
+  now: Date = new Date(),
+): Promise<void> {
+  const existing = await listProxyGrantsForPatient();
+  if (existing.length === 0) {
+    await replaceAllProxyGrants(buildDemoProxyGrants(now));
+  }
 }
 
-export function listAccessLog(patientId?: string): AccessLogEntry[] {
-  const rows = patientId
-    ? accessLog.filter((e) => e.patientId === patientId)
-    : [...accessLog];
-  return rows.sort((a, b) => b.at.localeCompare(a.at));
+export async function listProxyGrants(
+  patientId?: string,
+): Promise<ProxyGrant[]> {
+  await ensureProxyAccessSeeded();
+  return listProxyGrantsForPatient(patientId);
 }
 
-export function grantProxyAccess(input: {
+export async function listAccessLog(
+  patientId?: string,
+): Promise<AccessLogEntry[]> {
+  return listAccessLogForPatient(patientId);
+}
+
+export async function grantProxyAccess(input: {
   patientId: string;
   granteeId: string;
   granteeDisplayName: string;
@@ -66,7 +84,8 @@ export function grantProxyAccess(input: {
   expiresAt?: string | null;
   notes?: string;
   now?: Date;
-}): ProxyGrant {
+}): Promise<ProxyGrant> {
+  await ensureProxyAccessSeeded(input.now);
   const now = input.now ?? new Date();
   if (input.role === 'EMERGENCY_PASS' && !input.expiresAt) {
     throw new Error('EMERGENCY_PASS grants require expiresAt');
@@ -85,8 +104,8 @@ export function grantProxyAccess(input: {
     createdBy: input.createdBy,
     notes: input.notes,
   };
-  grants.push(grant);
-  appendAccessLog({
+  await saveProxyGrant(grant);
+  await appendAccessLog({
     grantId: grant.grantId,
     patientId: grant.patientId,
     actorId: input.createdBy,
@@ -99,16 +118,20 @@ export function grantProxyAccess(input: {
   return grant;
 }
 
-export function revokeProxyGrant(
+export async function revokeProxyGrant(
   grantId: string,
   actorId: string,
   now: Date = new Date(),
-): ProxyGrant {
-  const grant = grants.find((g) => g.grantId === grantId);
+): Promise<ProxyGrant> {
+  const grant = await getProxyGrantById(grantId);
   if (!grant) throw new Error(`Unknown grantId: ${grantId}`);
-  grant.status = 'REVOKED';
-  grant.updatedAt = now.toISOString();
-  appendAccessLog({
+  const updated: ProxyGrant = {
+    ...grant,
+    status: 'REVOKED',
+    updatedAt: now.toISOString(),
+  };
+  await saveProxyGrant(updated);
+  await appendAccessLog({
     grantId,
     patientId: grant.patientId,
     actorId,
@@ -117,13 +140,13 @@ export function revokeProxyGrant(
     permitted: true,
     now,
   });
-  return { ...grant };
+  return updated;
 }
 
 /**
  * Immutable append-only access log. Never deletes or mutates prior rows.
  */
-export function appendAccessLog(input: {
+export async function appendAccessLog(input: {
   grantId: string;
   patientId: string;
   actorId: string;
@@ -132,7 +155,7 @@ export function appendAccessLog(input: {
   permitted: boolean;
   detail?: string;
   now?: Date;
-}): AccessLogEntry {
+}): Promise<AccessLogEntry> {
   const entry: AccessLogEntry = {
     logId: newId('log'),
     grantId: input.grantId,
@@ -144,25 +167,25 @@ export function appendAccessLog(input: {
     detail: input.detail,
     at: (input.now ?? new Date()).toISOString(),
   };
-  accessLog.push(entry);
-  return entry;
+  return insertAccessLogEntry(entry);
 }
 
-export function checkPermission(
+export async function checkPermission(
   actorId: string,
   patientId: string,
   permission: ProxyPermission,
   now: Date = new Date(),
-): { permitted: boolean; grant: ProxyGrant | null; log: AccessLogEntry } {
+): Promise<{ permitted: boolean; grant: ProxyGrant | null; log: AccessLogEntry }> {
+  await ensureProxyAccessSeeded(now);
+  const grants = await listProxyGrantsForPatient(patientId);
   const active = grants.find(
     (g) =>
       g.granteeId === actorId &&
-      g.patientId === patientId &&
       effectiveStatus(g, now) === 'ACTIVE' &&
       g.permissions.includes(permission),
   );
   const permitted = Boolean(active);
-  const log = appendAccessLog({
+  const log = await appendAccessLog({
     grantId: active?.grantId ?? 'none',
     patientId,
     actorId,
@@ -199,15 +222,15 @@ export function evaluateAgeOut(
 /**
  * Age-out hand-off: mark PRIMARY_POA parental grants AGED_OUT and append
  * immutable log entries. Does not delete prior access history.
- * Pass `force: true` only for demo simulation when age < consent threshold.
  */
-export function executeAgeOutHandOff(
+export async function executeAgeOutHandOff(
   patientId: string,
   actorId: string,
   consentAgeYears: number = DEFAULT_CONSENT_AGE_YEARS,
   now: Date = new Date(),
   options: { force?: boolean } = {},
-): AgeOutHandOffResult {
+): Promise<AgeOutHandOffResult> {
+  await ensureProxyAccessSeeded(now);
   const evaluation = evaluateAgeOut(patientId, consentAgeYears);
   if (!evaluation.due && !options.force) {
     throw new Error(
@@ -221,16 +244,17 @@ export function executeAgeOutHandOff(
     ? `Demo force hand-off: ${evaluation.message}`
     : evaluation.message;
 
+  const grants = await listProxyGrantsForPatient(patientId);
   for (const grant of grants) {
-    if (
-      grant.patientId === patientId &&
-      grant.role === 'PRIMARY_POA' &&
-      grant.status === 'ACTIVE'
-    ) {
-      grant.status = 'AGED_OUT';
-      grant.updatedAt = now.toISOString();
+    if (grant.role === 'PRIMARY_POA' && grant.status === 'ACTIVE') {
+      const updated: ProxyGrant = {
+        ...grant,
+        status: 'AGED_OUT',
+        updatedAt: now.toISOString(),
+      };
+      await saveProxyGrant(updated);
       revokedGrantIds.push(grant.grantId);
-      const log = appendAccessLog({
+      const log = await appendAccessLog({
         grantId: grant.grantId,
         patientId,
         actorId,

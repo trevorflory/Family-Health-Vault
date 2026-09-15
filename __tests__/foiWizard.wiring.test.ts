@@ -58,6 +58,31 @@ describe('foiWizard payload wiring', () => {
     expect(payload.patient.encryptedPhn).toContain('•');
   });
 
+  it('builds a Quebec CIUSSS payload under LSSSS/AIPDP', () => {
+    const payload = assembleWizardPayload({
+      patientId: 'pt-2044',
+      jurisdiction: 'QC',
+      facilityId: 'qc-ciusss-centresud',
+      scope: ['FULL_CHART'],
+      hasPowerOfAttorney: true,
+    });
+    expect(payload.jurisdiction).toBe('QC');
+    expect(payload.facility.name).toMatch(/CIUSSS/i);
+    expect(payload.applicant.hasPowerOfAttorney).toBe(true);
+  });
+
+  it('builds a Manitoba Shared Health PHIA payload', () => {
+    const payload = assembleWizardPayload({
+      patientId: 'pt-1001',
+      jurisdiction: 'MB',
+      facilityId: 'mb-shared',
+      scope: ['LAB_HISTORY', 'SPECIALIST_NOTES'],
+      hasPowerOfAttorney: false,
+    });
+    expect(payload.facility.jurisdiction).toBe('MB');
+    expect(payload.scope).toContain('LAB_HISTORY');
+  });
+
   it('rejects facility/jurisdiction mismatches like the wizard guardrails', () => {
     expect(() =>
       assembleWizardPayload({

@@ -1,10 +1,37 @@
 import {
+  assertAllJurisdictionsCatalogued,
+  FOI_JURISDICTION_OPTIONS,
+} from '../data/foiJurisdictions';
+import {
+  HEALTH_AUTHORITIES,
+  jurisdictionsMissingFacilities,
+} from '../data/healthAuthorities';
+import {
   buildFOIRequestHtml,
   getLegalMeta,
   scopeLabel,
 } from '../services/foiTemplate';
-import type { FOIRequestPayload } from '../types/foiPayload';
-import { HEALTH_AUTHORITIES } from '../data/healthAuthorities';
+import {
+  ALL_CANADIAN_JURISDICTIONS,
+  type CanadianJurisdiction,
+  type FOIRequestPayload,
+} from '../types/foiPayload';
+
+const ACT_BY_JURISDICTION: Record<CanadianJurisdiction, string> = {
+  ON: 'PHIPA',
+  SK: 'HIPA',
+  AB: 'HIA',
+  BC: 'FIPPA/PIPA',
+  MB: 'PHIA',
+  NB: 'PHIPAA',
+  NS: 'PHIA',
+  NL: 'PHIA/ATIPPA',
+  PE: 'HIA/FOIPP',
+  QC: 'LSSSS/AIPDP',
+  YT: 'HIPMA/ATIPP',
+  NT: 'HIA/ATIPP',
+  NU: 'ATIPP',
+};
 
 function samplePayload(
   overrides: Partial<FOIRequestPayload> = {},
@@ -43,11 +70,29 @@ function samplePayload(
 }
 
 describe('foiTemplate legal builders', () => {
-  it('maps each Canadian jurisdiction to the correct act', () => {
-    expect(getLegalMeta('ON').actShortName).toBe('PHIPA');
-    expect(getLegalMeta('SK').actShortName).toBe('HIPA');
-    expect(getLegalMeta('AB').actShortName).toBe('HIA');
-    expect(getLegalMeta('BC').actShortName).toBe('FIPPA/PIPA');
+  it('covers all 13 Canadian jurisdictions with correct act short names', () => {
+    expect(ALL_CANADIAN_JURISDICTIONS).toHaveLength(13);
+    for (const code of ALL_CANADIAN_JURISDICTIONS) {
+      expect(getLegalMeta(code).actShortName).toBe(ACT_BY_JURISDICTION[code]);
+      expect(getLegalMeta(code).declaration.length).toBeGreaterThan(40);
+      expect(getLegalMeta(code).actFullName.length).toBeGreaterThan(10);
+    }
+  });
+
+  it('catalogues every jurisdiction for the wizard picker', () => {
+    expect(() => assertAllJurisdictionsCatalogued()).not.toThrow();
+    expect(FOI_JURISDICTION_OPTIONS).toHaveLength(13);
+    for (const opt of FOI_JURISDICTION_OPTIONS) {
+      expect(opt.actShortName).toBe(getLegalMeta(opt.code).actShortName);
+    }
+  });
+
+  it('provides at least one facility template per jurisdiction', () => {
+    expect(jurisdictionsMissingFacilities()).toEqual([]);
+    for (const code of ALL_CANADIAN_JURISDICTIONS) {
+      const facilities = HEALTH_AUTHORITIES.filter((f) => f.jurisdiction === code);
+      expect(facilities.length).toBeGreaterThanOrEqual(1);
+    }
   });
 
   it('labels all required scope items', () => {
@@ -72,7 +117,11 @@ describe('foiTemplate legal builders', () => {
   it('invokes PHIPA for Ontario UHN requests', () => {
     const uhn = HEALTH_AUTHORITIES.find((f) => f.id === 'on-uhn')!;
     const html = buildFOIRequestHtml(
-      samplePayload({ jurisdiction: 'ON', facility: uhn, feeWaiver: { requested: false } }),
+      samplePayload({
+        jurisdiction: 'ON',
+        facility: uhn,
+        feeWaiver: { requested: false },
+      }),
     );
     expect(html).toContain('University Health Network');
     expect(html).toContain('Personal Health Information Protection Act');
@@ -106,6 +155,32 @@ describe('foiTemplate legal builders', () => {
     );
     expect(html).toContain('Alberta Health Services');
     expect(html).toContain('Health Information Act');
-    expect(html).toContain('Power of Attorney / substitute decision-maker:</strong> Yes');
+    expect(html).toContain(
+      'Power of Attorney / substitute decision-maker:</strong> Yes',
+    );
   });
+
+  it.each([
+    ['MB', 'mb-shared', 'Personal Health Information Act'],
+    ['NB', 'nb-horizon', 'Personal Health Information Privacy and Access Act'],
+    ['NS', 'ns-nsha', 'Personal Health Information Act'],
+    ['NL', 'nl-nlhs', 'Access to Information and Protection of Privacy Act'],
+    ['PE', 'pe-healthpei', 'Health Information Act'],
+    ['QC', 'qc-ciusss-centresud', 'Loi sur les services de santé'],
+    ['YT', 'yt-hss', 'Health Information Privacy and Management Act'],
+    ['NT', 'nt-nthssa', 'Northwest Territories'],
+    ['NU', 'nu-health', 'Access to Information and Protection of Privacy Act'],
+  ] as const)(
+    'renders %s facility template with matching statute language',
+    (code, facilityId, statuteSnippet) => {
+      const facility = HEALTH_AUTHORITIES.find((f) => f.id === facilityId)!;
+      expect(facility.jurisdiction).toBe(code);
+      const html = buildFOIRequestHtml(
+        samplePayload({ jurisdiction: code, facility }),
+      );
+      expect(html).toContain(facility.name);
+      expect(html).toContain(statuteSnippet);
+      expect(html).toContain(getLegalMeta(code).actShortName);
+    },
+  );
 });

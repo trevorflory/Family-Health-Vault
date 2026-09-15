@@ -13,6 +13,10 @@ export interface JurisdictionLegalMeta {
   declaration: string;
 }
 
+/**
+ * Legal declaration meta for every Canadian province and territory.
+ * Educational template wording only — not legal advice.
+ */
 const LEGAL_META: Record<CanadianJurisdiction, JurisdictionLegalMeta> = {
   ON: {
     jurisdiction: 'ON',
@@ -53,12 +57,106 @@ const LEGAL_META: Record<CanadianJurisdiction, JurisdictionLegalMeta> = {
     declaration:
       'I hereby request access to the personal/health information described herein pursuant to my rights under the Freedom of Information and Protection of Privacy Act (FIPPA) and, where applicable, the Personal Information Protection Act (PIPA) of British Columbia. I declare that the information provided is true and complete, and that I am the applicant entitled to make this request.',
   },
+  MB: {
+    jurisdiction: 'MB',
+    actShortName: 'PHIA',
+    actFullName:
+      'Personal Health Information Act (PHIA) — Province of Manitoba',
+    requesterLabel: 'individual / authorized representative',
+    custodianLabel: 'trustee',
+    declaration:
+      'I hereby request access to the personal health information described herein pursuant to my rights under the Personal Health Information Act (PHIA) of Manitoba. I declare that the information provided is true and complete, and that I am the individual the information is about or an authorized representative under PHIA.',
+  },
+  NB: {
+    jurisdiction: 'NB',
+    actShortName: 'PHIPAA',
+    actFullName:
+      'Personal Health Information Privacy and Access Act (PHIPAA) — Province of New Brunswick',
+    requesterLabel: 'individual / authorized representative',
+    custodianLabel: 'custodian',
+    declaration:
+      'I hereby request access to the personal health information described herein pursuant to my rights under the Personal Health Information Privacy and Access Act (PHIPAA) of New Brunswick. I declare that the information provided is true and complete, and that I am the individual concerned or an authorized representative under PHIPAA.',
+  },
+  NS: {
+    jurisdiction: 'NS',
+    actShortName: 'PHIA',
+    actFullName:
+      'Personal Health Information Act (PHIA) — Province of Nova Scotia',
+    requesterLabel: 'individual / authorized representative',
+    custodianLabel: 'custodian',
+    declaration:
+      'I hereby request access to the personal health information described herein pursuant to my rights under the Personal Health Information Act (PHIA) of Nova Scotia. I declare that the information provided is true and complete, and that I am the individual the information is about or an authorized representative under PHIA.',
+  },
+  NL: {
+    jurisdiction: 'NL',
+    actShortName: 'PHIA/ATIPPA',
+    actFullName:
+      'Personal Health Information Act (PHIA) and/or Access to Information and Protection of Privacy Act, 2015 (ATIPPA) — Newfoundland and Labrador',
+    requesterLabel: 'applicant / authorized representative',
+    custodianLabel: 'custodian / public body',
+    declaration:
+      'I hereby request access to the personal health information described herein pursuant to my rights under the Personal Health Information Act (PHIA) and, where applicable, the Access to Information and Protection of Privacy Act, 2015 (ATIPPA) of Newfoundland and Labrador. I declare that the information provided is true and complete, and that I am entitled to make this request.',
+  },
+  PE: {
+    jurisdiction: 'PE',
+    actShortName: 'HIA/FOIPP',
+    actFullName:
+      'Health Information Act and/or Freedom of Information and Protection of Privacy Act — Province of Prince Edward Island',
+    requesterLabel: 'individual / authorized representative',
+    custodianLabel: 'custodian / public body',
+    declaration:
+      'I hereby request access to the personal health information described herein pursuant to my rights under the Health Information Act and, where applicable, the Freedom of Information and Protection of Privacy Act of Prince Edward Island. I declare that the information provided is true and complete, and that I am the individual concerned or an authorized representative.',
+  },
+  QC: {
+    jurisdiction: 'QC',
+    actShortName: 'LSSSS/AIPDP',
+    actFullName:
+      'Act respecting health services and social services (LSSSS) and/or Act respecting Access to documents held by public bodies and the Protection of personal information (AIPDP) — Québec',
+    requesterLabel: 'usager / représentant / demandeur',
+    custodianLabel: 'établissement / organisme public',
+    declaration:
+      'Je demande par la présente l’accès aux renseignements de santé / au dossier décrits aux présentes, conformément à mes droits en vertu de la Loi sur les services de santé et les services sociaux (LSSSS) et, le cas échéant, de la Loi sur l’accès aux documents des organismes publics et sur la protection des renseignements personnels (AIPDP) du Québec. Je déclare que les renseignements fournis sont exacts et complets, et que je suis l’usager concerné ou un représentant autorisé. / I hereby request access to the health information / user file described herein pursuant to my rights under Québec’s LSSSS and, where applicable, AIPDP. I declare that the information provided is true and complete, and that I am the user concerned or an authorized representative.',
+  },
+  YT: {
+    jurisdiction: 'YT',
+    actShortName: 'HIPMA/ATIPP',
+    actFullName:
+      'Health Information Privacy and Management Act (HIPMA) and/or Access to Information and Protection of Privacy Act (ATIPP) — Yukon',
+    requesterLabel: 'individual / authorized representative',
+    custodianLabel: 'custodian / public body',
+    declaration:
+      'I hereby request access to the personal health information described herein pursuant to my rights under the Health Information Privacy and Management Act (HIPMA) and, where applicable, the Access to Information and Protection of Privacy Act (ATIPP) of Yukon. I declare that the information provided is true and complete, and that I am entitled to make this request.',
+  },
+  NT: {
+    jurisdiction: 'NT',
+    actShortName: 'HIA/ATIPP',
+    actFullName:
+      'Health Information Act and/or Access to Information and Protection of Privacy Act (ATIPP) — Northwest Territories',
+    requesterLabel: 'individual / authorized representative',
+    custodianLabel: 'health information custodian / public body',
+    declaration:
+      'I hereby request access to the personal health information described herein pursuant to my rights under the Health Information Act and, where applicable, the Access to Information and Protection of Privacy Act (ATIPP) of the Northwest Territories. I declare that the information provided is true and complete, and that I am entitled to make this request.',
+  },
+  NU: {
+    jurisdiction: 'NU',
+    actShortName: 'ATIPP',
+    actFullName:
+      'Access to Information and Protection of Privacy Act (ATIPP) — Nunavut',
+    requesterLabel: 'applicant / authorized representative',
+    custodianLabel: 'public body',
+    declaration:
+      'I hereby request access to the personal/health information described herein pursuant to my rights under the Access to Information and Protection of Privacy Act (ATIPP) of Nunavut. I declare that the information provided is true and complete, and that I am the applicant entitled to make this request.',
+  },
 };
 
 export function getLegalMeta(
   jurisdiction: CanadianJurisdiction,
 ): JurisdictionLegalMeta {
-  return LEGAL_META[jurisdiction];
+  const meta = LEGAL_META[jurisdiction];
+  if (!meta) {
+    throw new Error(`Unsupported FOI jurisdiction: ${jurisdiction}`);
+  }
+  return meta;
 }
 
 const SCOPE_LABELS: Record<FOIScopeItem, string> = {
@@ -148,7 +246,7 @@ export function buildFOIRequestHtml(payload: FOIRequestPayload): string {
 <body>
   <h1>Formal Access to Information / FOI Record Request</h1>
   <p class="meta">Governing statute: <strong>${escapeHtml(legal.actFullName)}</strong><br/>
-  Request date: ${escapeHtml(payload.requestedAt)}</p>
+  Jurisdiction: ${escapeHtml(payload.jurisdiction)} · Request date: ${escapeHtml(payload.requestedAt)}</p>
 
   <section>
     <h2>1. Target Health Authority / Facility Record Department</h2>
@@ -202,7 +300,7 @@ export function buildFOIRequestHtml(payload: FOIRequestPayload): string {
     <p style="margin-top:16px;">Applicant signature: _______________________________ &nbsp;&nbsp; Date: _______________</p>
   </section>
 
-  <p class="footer">Generated by Healthcare App FOI module for submission to the named ${escapeHtml(legal.custodianLabel)}. This document is not legal advice.</p>
+  <p class="footer">Generated by Healthcare App FOI module for submission to the named ${escapeHtml(legal.custodianLabel)}. This document is not legal advice. Confirm current mailing addresses and filing requirements with the receiving office before dispatch.</p>
 </body>
 </html>`;
 }

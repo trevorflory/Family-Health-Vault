@@ -36,6 +36,8 @@ export interface DigestOverdueTask {
   kind: OverdueTaskKind;
   label: string;
   ageDays: number;
+  /** Optional FOI request / MedicalEvent id when vault-backed. */
+  relatedId?: string;
 }
 
 export interface DailyDependantSection {

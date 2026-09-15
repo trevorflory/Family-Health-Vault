@@ -1,6 +1,7 @@
-import { Link, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -26,28 +27,41 @@ import {
   revokeProxyGrant,
   roleLabel,
 } from '../../../services/proxyAccessEngine';
-import type { AccessLogEntry, ProxyGrant } from '../../../types/proxyAccess';
+import type {
+  AccessLogEntry,
+  AgeOutEvaluation,
+  ProxyGrant,
+} from '../../../types/proxyAccess';
 
 export default function ProxyAccessScreen() {
   const { id: patientId } = useLocalSearchParams<{ id: string }>();
   const profile = getPatientVaultProfile(patientId ?? '');
-  const [tick, setTick] = useState(0);
 
-  const refresh = useCallback(() => setTick((n) => n + 1), []);
+  const [grants, setGrants] = useState<ProxyGrant[]>([]);
+  const [logs, setLogs] = useState<AccessLogEntry[]>([]);
+  const [ageOut, setAgeOut] = useState<AgeOutEvaluation | null>(null);
+  const [busy, setBusy] = useState(true);
 
-  const grants = useMemo(
-    () => listProxyGrants(patientId),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [patientId, tick],
-  );
-  const logs = useMemo(
-    () => listAccessLog(patientId).slice(0, 12),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [patientId, tick],
-  );
-  const ageOut = useMemo(
-    () => (patientId ? evaluateAgeOut(patientId) : null),
-    [patientId, tick],
+  const load = useCallback(async () => {
+    if (!patientId) return;
+    try {
+      setBusy(true);
+      const [g, l] = await Promise.all([
+        listProxyGrants(patientId),
+        listAccessLog(patientId),
+      ]);
+      setGrants(g);
+      setLogs(l.slice(0, 12));
+      setAgeOut(evaluateAgeOut(patientId));
+    } finally {
+      setBusy(false);
+    }
+  }, [patientId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
   );
 
   if (!profile || !patientId) {
@@ -59,18 +73,24 @@ export default function ProxyAccessScreen() {
     );
   }
 
-  function onCheck(permission: 'EXPORT_SBAR' | 'MANAGE_PROXIES' | 'READ_VAULT') {
-    const result = checkPermission(DEMO_CAREGIVER_ID, patientId!, permission);
+  async function onCheck(
+    permission: 'EXPORT_SBAR' | 'MANAGE_PROXIES' | 'READ_VAULT',
+  ) {
+    const result = await checkPermission(
+      DEMO_CAREGIVER_ID,
+      patientId!,
+      permission,
+    );
     Alert.alert(
       result.permitted ? 'Permitted' : 'Denied',
       `${DEMO_PRIMARY_NAME} → ${permission}\n${result.log.detail ?? ''}`,
     );
-    refresh();
+    await load();
   }
 
-  function onInviteSibling() {
+  async function onInviteSibling() {
     try {
-      grantProxyAccess({
+      await grantProxyAccess({
         patientId: patientId!,
         granteeId: DEMO_SIBLING_ID,
         granteeDisplayName: DEMO_SIBLING_NAME,
@@ -78,22 +98,31 @@ export default function ProxyAccessScreen() {
         createdBy: DEMO_CAREGIVER_ID,
         notes: 'Invited from proxy access screen',
       });
-      Alert.alert('Sibling invited', `${DEMO_SIBLING_NAME} granted Sibling Care Coordinator.`);
-      refresh();
+      Alert.alert(
+        'Sibling invited',
+        `${DEMO_SIBLING_NAME} granted Sibling Care Coordinator.`,
+      );
+      await load();
     } catch (err) {
-      Alert.alert('Invite failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(
+        'Invite failed',
+        err instanceof Error ? err.message : 'Unknown error',
+      );
     }
   }
 
-  function onRevoke(grant: ProxyGrant) {
-    revokeProxyGrant(grant.grantId, DEMO_CAREGIVER_ID);
-    Alert.alert('Grant revoked', `${grant.granteeDisplayName} (${roleLabel(grant.role)})`);
-    refresh();
+  async function onRevoke(grant: ProxyGrant) {
+    await revokeProxyGrant(grant.grantId, DEMO_CAREGIVER_ID);
+    Alert.alert(
+      'Grant revoked',
+      `${grant.granteeDisplayName} (${roleLabel(grant.role)})`,
+    );
+    await load();
   }
 
-  function onAgeOut(force: boolean) {
+  async function onAgeOut(force: boolean) {
     try {
-      const result = executeAgeOutHandOff(
+      const result = await executeAgeOutHandOff(
         patientId!,
         DEMO_CAREGIVER_ID,
         undefined,
@@ -104,16 +133,31 @@ export default function ProxyAccessScreen() {
         'Age-out hand-off complete',
         `${result.handOffNote}\nRevoked: ${result.revokedGrantIds.length} grant(s).`,
       );
-      refresh();
+      await load();
     } catch (err) {
-      Alert.alert('Age-out blocked', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(
+        'Age-out blocked',
+        err instanceof Error ? err.message : 'Unknown error',
+      );
     }
   }
 
-  function onReset() {
-    resetProxyAccessStore();
-    refresh();
-    Alert.alert('Demo grants reset', 'Seeded Primary POA, Sibling, and Emergency Pass grants.');
+  async function onReset() {
+    await resetProxyAccessStore();
+    await load();
+    Alert.alert(
+      'Demo grants reset',
+      'Seeded Primary POA, Sibling, and Emergency Pass grants (persisted).',
+    );
+  }
+
+  if (busy && grants.length === 0) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color="#0f3d3e" />
+        <Text style={styles.meta}>Loading proxy grants…</Text>
+      </View>
+    );
   }
 
   return (
@@ -124,9 +168,9 @@ export default function ProxyAccessScreen() {
         {profile.fullName} · {profile.ageYears}y · {profile.relationshipLabel}
       </Text>
       <Text style={styles.notice}>
-        Tiered roles with an immutable access log. Emergency QR passes remain
-        short-lived; age-out hand-off revokes parental POA when consent age is
-        reached (demo default 16).
+        Tiered roles with a persisted, append-only access log. Emergency QR
+        passes remain short-lived; age-out hand-off marks parental POA AGED_OUT
+        when consent age is reached (demo default 16).
       </Text>
 
       <View style={styles.card}>
@@ -222,6 +266,13 @@ export default function ProxyAccessScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 20, paddingBottom: 48, gap: 12 },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 12,
+  },
   kicker: {
     fontSize: 12,
     fontWeight: '700',

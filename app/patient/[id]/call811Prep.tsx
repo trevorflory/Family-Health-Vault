@@ -90,8 +90,9 @@ export default function Call811PrepScreen() {
       <Text style={styles.heading}>Prepare your 811 call</Text>
       <Text style={styles.lede}>{subtitle}</Text>
       <Text style={styles.notice}>
-        Summarizes vault context for the triage nurse. Does not diagnose or
-        prescribe.
+        811 nurses follow a dispatcher script and will ask you questions. This
+        prep fills vault-backed answers so you can respond. It does not diagnose
+        or prescribe.
       </Text>
 
       <View style={styles.card}>
@@ -123,16 +124,29 @@ export default function Call811PrepScreen() {
         {busy ? (
           <ActivityIndicator color="#f4f7f5" />
         ) : (
-          <Text style={styles.primaryBtnText}>Build spoken script</Text>
+          <Text style={styles.primaryBtnText}>Build call cue sheet</Text>
         )}
       </Pressable>
 
       {output ? (
         <View style={styles.teleprompterCard}>
-          <Text style={styles.teleprompterLabel}>Spoken intro (read aloud)</Text>
+          <Text style={styles.teleprompterLabel}>Opening (when they ask why you’re calling)</Text>
           <Text style={styles.teleprompter}>{output.spokenIntroScript}</Text>
 
-          <Text style={styles.sectionLabel}>Historical context to mention</Text>
+          <Text style={styles.sectionLabel}>They will ask — your ready answers</Text>
+          <Text style={styles.metaLine}>
+            Follow their script. Read the matching answer when they ask.
+          </Text>
+          {output.dispatcherCueSheet.map((cue, i) => (
+            <View key={cue.dispatcherAsks} style={styles.cueBlock}>
+              <Text style={styles.cueAsk}>
+                {i + 1}. Nurse: {cue.dispatcherAsks}
+              </Text>
+              <Text style={styles.cueAnswer}>You: {cue.readyAnswer}</Text>
+            </View>
+          ))}
+
+          <Text style={styles.sectionLabel}>Mention if they probe further</Text>
           {output.historicalRedFlags.length === 0 ? (
             <Text style={styles.metaLine}>None flagged from vault.</Text>
           ) : (
@@ -143,7 +157,7 @@ export default function Call811PrepScreen() {
             ))
           )}
 
-          <Text style={styles.sectionLabel}>Ask the 811 nurse</Text>
+          <Text style={styles.sectionLabel}>After their script — clarify if needed</Text>
           {output.questionsToAskNurse.map((q, i) => (
             <Text key={q} style={styles.bullet}>
               {i + 1}. {q}
@@ -248,6 +262,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
   },
+  cueBlock: {
+    gap: 4,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#1f4a4b',
+  },
+  cueAsk: { color: '#9ec4c5', fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  cueAnswer: { color: '#f4f7f5', fontSize: 17, lineHeight: 24, fontWeight: '600' },
   bullet: { color: '#e4efef', fontSize: 15, lineHeight: 22 },
   metaLine: { color: '#9ec4c5', fontSize: 14 },
   finePrint: {

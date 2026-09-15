@@ -14,9 +14,11 @@
 - `services/` — side-effectful and pure domain services
 - `data/` — static templates (health authorities, legal copy, patient vault)
 - `app/patient/[id]/foiWizard.tsx` — FOI wizard UI
+- `app/patient/[id]/foiStatus.tsx` — vault-backed FOI request status list
 - `app/patient/[id]/call811Prep.tsx` — 811 caregiver script prep UI
 - `app/patient/[id]/sbarExport.tsx` — 1-page SBAR export UI
-- `app/digest/daily.tsx` / `app/digest/weekly.tsx` — caregiver digest dashboards
+- `app/digest/daily.tsx` / `app/digest/weekly.tsx` — caregiver digest dashboards (live FOI / labs / med marks) (live FOI / labs / med marks)
+- `app/patient/[id]/foiStatus.tsx` — vault-backed FOI request status list
 - `app/patient/[id]/uploadDoc.tsx` — OCR capture + verification UI
 - `app/patient/[id]/voiceDebrief.tsx` — post-visit voice debrief UI
 - `app/sandbox/aiTest.tsx` — local Ollama / SaMD sandbox UI
@@ -30,10 +32,11 @@
 ## Proxy access rules
 
 1. Roles: `PRIMARY_POA`, `SIBLING_COORDINATOR`, `EMERGENCY_PASS` with fixed permission sets from `ROLE_PERMISSIONS`.
-2. Access log is append-only — revoke/age-out must never delete prior entries.
+2. Access log is append-only — revoke/age-out must never delete prior entries. Persist via `db/proxyAccess` (`ProxyGrants` + `ProxyAccessLog`).
 3. `EMERGENCY_PASS` grants require `expiresAt`; expired grants deny checks.
 4. Age-out hand-off marks parental `PRIMARY_POA` grants `AGED_OUT` at consent age (default 16); demo may force for younger profiles.
 5. Wire Emergency Pass CTA to existing `emergencyPass` screen rather than reimplementing QR crypto.
+6. Engine APIs that mutate or list grants/log are async.
 
 ## SBAR summarizer rules
 
@@ -48,9 +51,10 @@
 ## QA sandbox rules
 
 1. `seedLocalSandboxData()` must create Dad (78) CKD/T2DM + 4 meds + SHA lab mock + visit debrief MedicalEvent and Child (4) SK vaccines.
-2. Sandbox actions exercise real services (digest, FOI, 811, SBAR) — no fake stubs for core loops.
-3. Digest trigger must surface the push alert payload for verification.
-4. Keep seed fixtures unit-testable without SQLite where possible.
+2. Sandbox actions exercise real services (digest daily/weekly, FOI, 811, SBAR via `compileSBAR`/`generateSBARPDF`, emergency pass, OCR parse+save, voice debrief extract+save) — no parallel hardcoded SBAR HTML path.
+3. Digest triggers must surface the push alert payload for verification (daily + weekly).
+4. Keep seed fixtures unit-testable without SQLite where possible (`getDadSandboxMedicalEvents`).
+5. OCR/voice sandbox runners may skip Tesseract/mic via text overrides but must use the same parsers and MedicalEvents persistence.
 
 ## Emergency pass rules
 
@@ -58,6 +62,7 @@
 2. QR encodes ciphertext only; wallet card PDF also prints human-readable alerts for offline ER use.
 3. Override demo key via `EXPO_PUBLIC_EMERGENCY_PASS_KEY` in real deployments.
 4. Never log decrypted emergency payloads.
+5. Profiles live in `data/emergencyProfiles.ts` (include sandbox Child `pt-leo-04`); sandbox runner: `runDadEmergencyPassSandbox`.
 
 ## Local LLM bridge rules
 
@@ -84,25 +89,29 @@
 
 1. `compileDailyDigest` / `compileWeeklyDigest` scan Aging Parent + Child + Self household profiles.
 2. Daily scan includes meds today, appointments ≤72h with prep alerts, FOI pending >30 days, missing labs.
-3. Notifications: daily 07:00 and Sunday 16:00 via `expo-notifications`; deep-link to `/digest/daily` or `/digest/weekly`.
-4. Keep digest compilation pure/testable with an injectable `now` clock; mock `expo-notifications` in unit tests.
+3. Prefer vault truth: live `FOIRequests` DRAFT age, MedicalEvents lab uploads, and `MedDoseMarks` via injectable `DigestDataLoaders` / `createLiveDigestLoaders()`. Fixture overdue tasks are fallbacks when FOI store is empty.
+4. “Review FOI Status” opens `foiStatus` (list of saved requests), not a blank wizard.
+5. Notifications: daily 07:00 and Sunday 16:00 via `expo-notifications`; deep-link to `/digest/daily` or `/digest/weekly`.
+6. Keep digest compilation testable with injectable `now` + loaders; mock `expo-notifications` in unit tests.
 
 ## 811 Call Assistant rules
 
 1. `generate811Script` is a Contextual Summarizer / Caregiver Script Assistant only.
 2. Never emit diagnostic verdicts, acuity scores, or treatment/prescription instructions.
 3. Tolerate null/missing medication dose and frequency without crashing.
-4. Always return `spokenIntroScript`, `historicalRedFlags`, and exactly 3 `questionsToAskNurse`.
-5. Call action uses `expo-linking` with `tel:811` only after a script is generated.
+4. Frame output for answering the 811 nurse’s dispatcher script (they ask; caregiver answers from vault).
+5. Always return `spokenIntroScript`, exactly 4 `dispatcherCueSheet` cues, `historicalRedFlags`, and exactly 3 `questionsToAskNurse`.
+6. Call action uses `expo-linking` with `tel:811` only after a script is generated.
 
 ## FOI module rules
 
-1. Always source facility addresses from `data/healthAuthorities.ts` templates.
-2. Legal declaration text must invoke the act for the selected jurisdiction (PHIPA / HIPA / HIA / FIPPA-PIPA).
+1. Always source facility addresses from `data/healthAuthorities.ts` templates — every Canadian province and territory must have ≥1 facility.
+2. Legal declaration text must invoke the act for the selected jurisdiction (PHIPA / HIPA / HIA / FIPPA-PIPA / PHIA / PHIPAA / LSSSS-AIPDP / HIPMA-ATIPP / ATIPP / HIA-FOIPP as applicable). Catalog: `data/foiJurisdictions.ts`.
 3. `generateFOIPDF` returns a print URI or base64 string from `expo-print`.
 4. Persist via `FOIRequests` with status `DRAFT` or `DISPATCHED` only.
 5. Do not log raw PHN/HIN values.
 6. Keep wizard steps explicit; do not collapse Step 3 (authority proof) into Step 2.
+7. `CanadianJurisdiction` is all 13 subdivision codes: AB BC MB NB NL NS NT NU ON PE QC SK YT.
 
 ## Testing
 

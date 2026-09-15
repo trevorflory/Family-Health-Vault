@@ -11,21 +11,42 @@ import {
   View,
 } from 'react-native';
 import type { Triage811Output } from '../../types/triage811';
+import type { SBARDocument } from '../../types/sbar';
 import {
+  SEED_CHILD_ID,
   SEED_DAD_ID,
   seedLocalSandboxData,
   type SeedResult,
 } from '../../utils/mockSeeder';
 import {
-  previewDadSbarHtml,
   run811ScriptSandbox,
+  runDadEmergencyPassSandbox,
+  runDadOcrLabSandbox,
+  runDadVoiceDebriefSandbox,
   runDailyDigestSandbox,
   runDadSbarSandbox,
+  runLeoAgeOutSandbox,
   runSkHipaFoiSandbox,
+  runWeeklyDigestSandbox,
   type DigestSandboxResult,
+  type EmergencyPassSandboxResult,
+  type OcrLabSandboxResult,
+  type VoiceDebriefSandboxResult,
+  type WeeklyDigestSandboxResult,
 } from '../../utils/sandboxFlows';
 
-type BusyKey = 'seed' | 'digest' | 'sbar' | 'foi' | 'script811' | null;
+type BusyKey =
+  | 'seed'
+  | 'digest'
+  | 'weekly'
+  | 'sbar'
+  | 'foi'
+  | 'script811'
+  | 'ageOut'
+  | 'emergency'
+  | 'ocr'
+  | 'voice'
+  | null;
 
 export default function SandboxHomeScreen() {
   const [busy, setBusy] = useState<BusyKey>(null);
@@ -33,10 +54,23 @@ export default function SandboxHomeScreen() {
   const [digestResult, setDigestResult] = useState<DigestSandboxResult | null>(
     null,
   );
+  const [weeklyResult, setWeeklyResult] =
+    useState<WeeklyDigestSandboxResult | null>(null);
   const [sbarHtml, setSbarHtml] = useState<string | null>(null);
   const [sbarUri, setSbarUri] = useState<string | null>(null);
+  const [sbarDoc, setSbarDoc] = useState<SBARDocument | null>(null);
   const [foiUri, setFoiUri] = useState<string | null>(null);
   const [script811, setScript811] = useState<Triage811Output | null>(null);
+  const [ageOutResult, setAgeOutResult] = useState<{
+    handOffNote: string;
+    grantStatuses: string[];
+    accessLogCount: number;
+  } | null>(null);
+  const [emergencyResult, setEmergencyResult] =
+    useState<EmergencyPassSandboxResult | null>(null);
+  const [ocrResult, setOcrResult] = useState<OcrLabSandboxResult | null>(null);
+  const [voiceResult, setVoiceResult] =
+    useState<VoiceDebriefSandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -65,15 +99,17 @@ export default function SandboxHomeScreen() {
     if (result) setDigestResult(result);
   }
 
+  async function onWeekly() {
+    const result = await withBusy('weekly', () => runWeeklyDigestSandbox());
+    if (result) setWeeklyResult(result);
+  }
+
   async function onSbar() {
-    const result = await withBusy('sbar', async () => {
-      const html = previewDadSbarHtml();
-      const pdf = await runDadSbarSandbox();
-      return { ...pdf, html };
-    });
+    const result = await withBusy('sbar', () => runDadSbarSandbox());
     if (!result) return;
     setSbarHtml(result.html);
     setSbarUri(result.uri);
+    setSbarDoc(result.document);
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(result.uri, {
         mimeType: 'application/pdf',
@@ -101,6 +137,36 @@ export default function SandboxHomeScreen() {
   async function on811() {
     const result = await withBusy('script811', () => run811ScriptSandbox());
     if (result) setScript811(result);
+  }
+
+  async function onAgeOut() {
+    const result = await withBusy('ageOut', () => runLeoAgeOutSandbox());
+    if (result) setAgeOutResult(result);
+  }
+
+  async function onEmergency() {
+    const result = await withBusy('emergency', () =>
+      runDadEmergencyPassSandbox(),
+    );
+    if (!result) return;
+    setEmergencyResult(result);
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(result.pdfUri, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Dad emergency wallet card',
+        UTI: 'com.adobe.pdf',
+      });
+    }
+  }
+
+  async function onOcr() {
+    const result = await withBusy('ocr', () => runDadOcrLabSandbox());
+    if (result) setOcrResult(result);
+  }
+
+  async function onVoice() {
+    const result = await withBusy('voice', () => runDadVoiceDebriefSandbox());
+    if (result) setVoiceResult(result);
   }
 
   return (
@@ -158,17 +224,52 @@ export default function SandboxHomeScreen() {
       ) : null}
 
       <ActionCard
+        title="1b. Run Weekly Digest Generator"
+        subtitle="Sunday overview + verify weekly push payload"
+        busy={busy === 'weekly'}
+        disabled={busy !== null}
+        onPress={onWeekly}
+      />
+      {weeklyResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Weekly push alert payload</Text>
+          <Text style={styles.mono}>
+            {JSON.stringify(weeklyResult.pushPayload, null, 2)}
+          </Text>
+          <Text style={styles.meta}>{weeklyResult.digest.narrativeSummary}</Text>
+          <Link href="/digest/weekly" asChild>
+            <Pressable>
+              <Text style={styles.link}>Open Weekly Digest screen →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
         title="2. Synthesize Dad's SBAR Note"
-        subtitle="Render 1-page visit-prep PDF preview"
+        subtitle="compileSBAR + MedicalEvents → 1-page PDF (same path as export UI)"
         busy={busy === 'sbar'}
         disabled={busy !== null}
         onPress={onSbar}
       />
       {sbarHtml ? (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>SBAR HTML preview</Text>
+          <Text style={styles.cardTitle}>SBAR from vault engine</Text>
+          {sbarDoc ? (
+            <>
+              <Text style={styles.meta}>
+                Sources: {sbarDoc.sourceEventSummaries.join(' · ') || 'none'}
+              </Text>
+              <Text style={styles.notice}>{sbarDoc.regulatoryNotice}</Text>
+            </>
+          ) : null}
           <Text style={styles.preview}>{sbarHtml.slice(0, 700)}…</Text>
           {sbarUri ? <Text style={styles.meta}>PDF: {sbarUri}</Text> : null}
+          <Link href={`/patient/${SEED_DAD_ID}/sbarExport`} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open full SBAR export →</Text>
+            </Pressable>
+          </Link>
         </View>
       ) : null}
 
@@ -195,15 +296,21 @@ export default function SandboxHomeScreen() {
       />
       {script811 ? (
         <View style={styles.teleprompter}>
-          <Text style={styles.teleLabel}>Spoken intro (read aloud)</Text>
+          <Text style={styles.teleLabel}>Opening (why you’re calling)</Text>
           <Text style={styles.teleText}>{script811.spokenIntroScript}</Text>
+          <Text style={styles.teleLabel}>Dispatcher will ask — ready answers</Text>
+          {script811.dispatcherCueSheet.map((cue, i) => (
+            <Text key={cue.dispatcherAsks} style={styles.teleBullet}>
+              {i + 1}. {cue.dispatcherAsks} → {cue.readyAnswer}
+            </Text>
+          ))}
           <Text style={styles.teleLabel}>Historical context</Text>
           {script811.historicalRedFlags.map((f) => (
             <Text key={f} style={styles.teleBullet}>
               • {f}
             </Text>
           ))}
-          <Text style={styles.teleLabel}>Ask the 811 nurse</Text>
+          <Text style={styles.teleLabel}>Clarify after their script</Text>
           {script811.questionsToAskNurse.map((q, i) => (
             <Text key={q} style={styles.teleBullet}>
               {i + 1}. {q}
@@ -213,6 +320,105 @@ export default function SandboxHomeScreen() {
           <Link href={`/patient/${SEED_DAD_ID}/call811Prep`} asChild>
             <Pressable>
               <Text style={styles.linkLight}>Open full 811 prep →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="5. Leo age-out hand-off"
+        subtitle="Force parental PRIMARY_POA → AGED_OUT (persisted log)"
+        busy={busy === 'ageOut'}
+        disabled={busy !== null}
+        onPress={onAgeOut}
+      />
+      {ageOutResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Age-out result</Text>
+          <Text style={styles.meta}>{ageOutResult.handOffNote}</Text>
+          <Text style={styles.meta}>
+            Grant statuses: {ageOutResult.grantStatuses.join(', ')} · Log entries:{' '}
+            {ageOutResult.accessLogCount}
+          </Text>
+          <Link href={`/patient/${SEED_CHILD_ID}/proxyAccess`} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open Leo proxy access →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="6. Dad Emergency Pass"
+        subtitle="AES-256 QR ciphertext + printable wallet card PDF"
+        busy={busy === 'emergency'}
+        disabled={busy !== null}
+        onPress={onEmergency}
+      />
+      {emergencyResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Emergency pass generated</Text>
+          <Text style={styles.meta}>
+            {emergencyResult.pass.context.fullName} · expires{' '}
+            {new Date(emergencyResult.pass.expiresAt).toLocaleString('en-CA')}
+          </Text>
+          <Text style={styles.meta}>
+            Allergies: {emergencyResult.pass.context.allergies.join('; ')}
+          </Text>
+          <Text style={styles.meta}>
+            Token prefix: {emergencyResult.pass.qrValue.slice(0, 12)}… (ciphertext
+            only)
+          </Text>
+          <Text style={styles.meta}>PDF: {emergencyResult.pdfUri}</Text>
+          <Link href={`/patient/${SEED_DAD_ID}/emergencyPass`} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open Emergency QR screen →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="7. Dad OCR lab ingest"
+        subtitle="Parse SHA lab mock → MedicalEvents PENDING_REVIEW"
+        busy={busy === 'ocr'}
+        disabled={busy !== null}
+        onPress={onOcr}
+      />
+      {ocrResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>OCR lab saved</Text>
+          <Text style={styles.meta}>
+            {ocrResult.record.id} · {ocrResult.record.status} · labs:{' '}
+            {ocrResult.parsed.labs.map((l) => l.testName).join(', ')}
+          </Text>
+          <Link href={ocrResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open upload / verify UI →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="8. Dad voice visit debrief"
+        subtitle="Extract transcript → VISIT_DEBRIEF MedicalEvent"
+        busy={busy === 'voice'}
+        disabled={busy !== null}
+        onPress={onVoice}
+      />
+      {voiceResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Visit debrief saved</Text>
+          <Text style={styles.meta}>
+            {voiceResult.record.id} · {voiceResult.record.status}
+          </Text>
+          <Text style={styles.meta}>
+            Actions: {voiceResult.extracted.actionItems.join('; ')}
+          </Text>
+          <Link href={voiceResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open voice debrief UI →</Text>
             </Pressable>
           </Link>
         </View>
