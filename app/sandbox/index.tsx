@@ -30,6 +30,7 @@ import {
   runSkShaConnectorSandbox,
   runAbMyHealthConnectorSandbox,
   runBcHealthGatewayConnectorSandbox,
+  runOnPortalConnectorSandbox,
   runWeeklyDigestSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
@@ -37,6 +38,7 @@ import {
   type SkConnectorSandboxResult,
   type AbConnectorSandboxResult,
   type BcConnectorSandboxResult,
+  type OnConnectorSandboxResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
 } from '../../utils/sandboxFlows';
@@ -55,6 +57,7 @@ type BusyKey =
   | 'skConnect'
   | 'abConnect'
   | 'bcConnect'
+  | 'onConnect'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -86,6 +89,8 @@ export default function SandboxHomeScreen() {
     useState<AbConnectorSandboxResult | null>(null);
   const [bcConnectResult, setBcConnectResult] =
     useState<BcConnectorSandboxResult | null>(null);
+  const [onConnectResult, setOnConnectResult] =
+    useState<OnConnectorSandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -201,6 +206,13 @@ export default function SandboxHomeScreen() {
       runBcHealthGatewayConnectorSandbox(),
     );
     if (result) setBcConnectResult(result);
+  }
+
+  async function onOnConnect() {
+    const result = await withBusy('onConnect', () =>
+      runOnPortalConnectorSandbox(),
+    );
+    if (result) setOnConnectResult(result);
   }
 
   return (
@@ -384,6 +396,29 @@ export default function SandboxHomeScreen() {
             {bcConnectResult.smartAvailable ? 'available' : 'not public'}
           </Text>
           <Link href={bcConnectResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open portal sync →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="3e. ON / MyChart+OLIS connector"
+        subtitle="Sample FHIR sync + fragmented-portal playbook (FILE_IMPORT)"
+        busy={busy === 'onConnect'}
+        disabled={busy !== null}
+        onPress={onOnConnect}
+      />
+      {onConnectResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>ON connector result</Text>
+          <Text style={styles.meta}>
+            Imported {onConnectResult.importedCount} · {onConnectResult.jurisdiction}{' '}
+            · playbook {onConnectResult.playbookSteps} · SMART{' '}
+            {onConnectResult.smartAvailable ? 'available' : 'not public'}
+          </Text>
+          <Link href={onConnectResult.deepLink} asChild>
             <Pressable>
               <Text style={styles.link}>Open portal sync →</Text>
             </Pressable>
