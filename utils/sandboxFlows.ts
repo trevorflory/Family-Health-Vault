@@ -33,6 +33,7 @@ import { syncBcSampleToVault } from '../services/interop/bcConnector';
 import { syncOnSampleToVault } from '../services/interop/onConnector';
 import { syncQcSampleToVault } from '../services/interop/qcConnector';
 import { syncMbSampleToVault } from '../services/interop/mbConnector';
+import { syncNsSampleToVault } from '../services/interop/nsConnector';
 import {
   SEED_CHILD_ID,
   SEED_DAD_ID,
@@ -500,6 +501,33 @@ export async function runMbEchartConnectorSandbox(options?: {
 }): Promise<MbConnectorSandboxResult> {
   const patientId = options?.patientId ?? SEED_DAD_ID;
   const { result, smart, playbook } = await syncMbSampleToVault({
+    patientId,
+    now: options?.now ?? new Date('2026-09-15T12:00:00.000Z'),
+  });
+  return {
+    importedCount: result.importedCount,
+    jurisdiction: result.jurisdiction,
+    smartAvailable: smart.ok,
+    playbookSteps: playbook.length,
+    deepLink: `/patient/${patientId}/portalSync`,
+  };
+}
+
+export interface NsConnectorSandboxResult {
+  importedCount: number;
+  jurisdiction: string;
+  smartAvailable: boolean;
+  playbookSteps: number;
+  deepLink: string;
+}
+
+/** Exercise Nova Scotia YourHealthNS FILE_IMPORT sample FHIR sync. */
+export async function runNsYourHealthConnectorSandbox(options?: {
+  patientId?: string;
+  now?: Date;
+}): Promise<NsConnectorSandboxResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const { result, smart, playbook } = await syncNsSampleToVault({
     patientId,
     now: options?.now ?? new Date('2026-09-15T12:00:00.000Z'),
   });

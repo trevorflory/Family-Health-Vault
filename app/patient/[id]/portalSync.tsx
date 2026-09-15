@@ -46,6 +46,12 @@ import {
   syncMbSampleToVault,
 } from '../../../services/interop/mbConnector';
 import {
+  getNsExportPlaybook,
+  getNsSmartAuthStatus,
+  importNsFhirJsonExport,
+  syncNsSampleToVault,
+} from '../../../services/interop/nsConnector';
+import {
   getSkExportPlaybook,
   getSkSmartAuthStatus,
   importSkFhirJsonExport,
@@ -64,24 +70,28 @@ export default function PortalSyncScreen() {
   const onFacilities = useMemo(() => facilitiesForJurisdiction('ON'), []);
   const qcFacilities = useMemo(() => facilitiesForJurisdiction('QC'), []);
   const mbFacilities = useMemo(() => facilitiesForJurisdiction('MB'), []);
+  const nsFacilities = useMemo(() => facilitiesForJurisdiction('NS'), []);
   const sha = getFacilityById('sk-sha');
   const ahs = getFacilityById('ab-ahs');
   const bcgw = getFacilityById('bc-health-gateway');
   const onPortals = getFacilityById('on-patient-portals');
   const qcCarnet = getFacilityById('qc-carnet-sante');
   const mbShared = getFacilityById('mb-shared');
+  const nsNsha = getFacilityById('ns-nsha');
   const skPlaybook = useMemo(() => getSkExportPlaybook(), []);
   const abPlaybook = useMemo(() => getAbExportPlaybook(), []);
   const bcPlaybook = useMemo(() => getBcExportPlaybook(), []);
   const onPlaybook = useMemo(() => getOnExportPlaybook(), []);
   const qcPlaybook = useMemo(() => getQcExportPlaybook(), []);
   const mbPlaybook = useMemo(() => getMbExportPlaybook(), []);
+  const nsPlaybook = useMemo(() => getNsExportPlaybook(), []);
   const skSmart = useMemo(() => getSkSmartAuthStatus(), []);
   const abSmart = useMemo(() => getAbSmartAuthStatus(), []);
   const bcSmart = useMemo(() => getBcSmartAuthStatus(), []);
   const onSmart = useMemo(() => getOnSmartAuthStatus(), []);
   const qcSmart = useMemo(() => getQcSmartAuthStatus(), []);
   const mbSmart = useMemo(() => getMbSmartAuthStatus(), []);
+  const nsSmart = useMemo(() => getNsSmartAuthStatus(), []);
 
   async function onSyncSkSample() {
     if (!patientId) return;
@@ -203,8 +213,28 @@ export default function PortalSyncScreen() {
     }
   }
 
+  async function onSyncNsSample() {
+    if (!patientId) return;
+    setBusy(true);
+    try {
+      const { auth, result: pull } = await syncNsSampleToVault({ patientId });
+      setResult(pull);
+      Alert.alert(
+        'NS sample FHIR sync',
+        `${auth.message}\nImported ${pull.importedCount} event(s).`,
+      );
+    } catch (err) {
+      Alert.alert(
+        'NS connector failed',
+        err instanceof Error ? err.message : 'Sync failed',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onImportFhirJsonFile(
-    jurisdiction: 'SK' | 'AB' | 'BC' | 'ON' | 'QC' | 'MB',
+    jurisdiction: 'SK' | 'AB' | 'BC' | 'ON' | 'QC' | 'MB' | 'NS',
   ) {
     if (!patientId) return;
     setBusy(true);
@@ -228,7 +258,9 @@ export default function PortalSyncScreen() {
                 ? await importQcFhirJsonExport({ patientId, jsonText })
                 : jurisdiction === 'MB'
                   ? await importMbFhirJsonExport({ patientId, jsonText })
-                  : await importSkFhirJsonExport({ patientId, jsonText });
+                  : jurisdiction === 'NS'
+                    ? await importNsFhirJsonExport({ patientId, jsonText })
+                    : await importSkFhirJsonExport({ patientId, jsonText });
       setResult(pull);
       if (pull.parseError) {
         Alert.alert('FHIR import failed', pull.parseError);
@@ -478,6 +510,43 @@ export default function PortalSyncScreen() {
         ))}
       </View>
 
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>
+          {nsNsha?.name ?? 'Nova Scotia Health'}
+        </Text>
+        <Text style={styles.body}>
+          Mode: {nsNsha?.interop?.syncMode ?? 'MANUAL_ONLY'}
+          {'\n'}
+          Portal: {nsNsha?.interop?.portalLabel ?? '—'}
+          {'\n'}
+          SMART: {nsSmart.readiness.availability} — {nsSmart.message}
+        </Text>
+        <Pressable
+          style={[styles.cta, busy && styles.ctaDisabled]}
+          disabled={busy}
+          onPress={() => void onSyncNsSample()}
+        >
+          {busy ? (
+            <ActivityIndicator color="#f4f7f5" />
+          ) : (
+            <Text style={styles.ctaText}>Run NS sample FHIR sync</Text>
+          )}
+        </Pressable>
+        <Pressable
+          style={[styles.secondary, busy && styles.ctaDisabled]}
+          disabled={busy}
+          onPress={() => void onImportFhirJsonFile('NS')}
+        >
+          <Text style={styles.secondaryText}>Import FHIR JSON (NS)</Text>
+        </Pressable>
+        <Text style={styles.cardTitle}>YourHealthNS export playbook</Text>
+        {nsPlaybook.map((step, index) => (
+          <Text key={step.id} style={styles.body}>
+            {index + 1}. {step.title} — {step.detail}
+          </Text>
+        ))}
+      </View>
+
       {result ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Last pull</Text>
@@ -493,7 +562,9 @@ export default function PortalSyncScreen() {
         </View>
       ) : null}
 
-      <Text style={styles.section}>SK / AB / BC / ON / QC / MB custodians</Text>
+      <Text style={styles.section}>
+        SK / AB / BC / ON / QC / MB / NS custodians
+      </Text>
       {[
         ...skFacilities,
         ...abFacilities,
@@ -501,6 +572,7 @@ export default function PortalSyncScreen() {
         ...onFacilities,
         ...qcFacilities,
         ...mbFacilities,
+        ...nsFacilities,
       ].map((f) => (
         <View key={f.id} style={styles.row}>
           <Text style={styles.rowTitle}>{f.name}</Text>
