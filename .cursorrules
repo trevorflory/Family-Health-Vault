@@ -52,6 +52,8 @@
 12. Québec (`qc-carnet-sante`): Carnet santé Québec FILE_IMPORT (`importQcCarnetLabText`, `importQcFhirJsonExport`); FOI via treating CIUSSS / Santé Québec.
 13. Manitoba (`mb-shared`): eChart is clinician-facing — FILE_IMPORT via care-org portal OCR or eChart PHI lab copy (`importMbEchartLabText`, `importMbFhirJsonExport`); FOI via Shared Health / WRHA under PHIA. Do not invent a patient SMART endpoint.
 14. Nova Scotia (`ns-nsha` / YourHealthNS): FILE_IMPORT (`importNsYourHealthLabText`, `importNsFhirJsonExport`); FOI via Nova Scotia Health. Do not claim a public SMART launch.
+15. Remaining Canada (`data/canadaRemainingInterop.ts` + `canadaRemainingConnectors.ts`): NB MyHealthNB (`nb-myhealth`), NL MyHealthNL (`nl-nlhs`), PE MyHealthPEI (`pe-healthpei`), YT/NT/NU ATIPP-first FILE_IMPORT (`yt-hss`, `nt-nthssa`, `nu-health`). Territories have no general consumer portals — do not invent SMART endpoints. Shared kit: `fileImportProvinceKit.ts`.
+
 
 
 ## Proxy access rules

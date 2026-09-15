@@ -34,6 +34,7 @@ import {
   runQcCarnetConnectorSandbox,
   runMbEchartConnectorSandbox,
   runNsYourHealthConnectorSandbox,
+  runRemainingCanadaConnectorsSandbox,
   runWeeklyDigestSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
@@ -45,6 +46,7 @@ import {
   type QcConnectorSandboxResult,
   type MbConnectorSandboxResult,
   type NsConnectorSandboxResult,
+  type RemainingCanadaSandboxResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
 } from '../../utils/sandboxFlows';
@@ -67,6 +69,7 @@ type BusyKey =
   | 'qcConnect'
   | 'mbConnect'
   | 'nsConnect'
+  | 'remainingCa'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -106,6 +109,8 @@ export default function SandboxHomeScreen() {
     useState<MbConnectorSandboxResult | null>(null);
   const [nsConnectResult, setNsConnectResult] =
     useState<NsConnectorSandboxResult | null>(null);
+  const [remainingCaResult, setRemainingCaResult] =
+    useState<RemainingCanadaSandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -249,6 +254,13 @@ export default function SandboxHomeScreen() {
       runNsYourHealthConnectorSandbox(),
     );
     if (result) setNsConnectResult(result);
+  }
+
+  async function onRemainingCa() {
+    const result = await withBusy('remainingCa', () =>
+      runRemainingCanadaConnectorsSandbox(),
+    );
+    if (result) setRemainingCaResult(result);
   }
 
   return (
@@ -524,6 +536,29 @@ export default function SandboxHomeScreen() {
             {nsConnectResult.smartAvailable ? 'available' : 'not public'}
           </Text>
           <Link href={nsConnectResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open portal sync →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="3i. Remaining Canada (NB NL PE YT NT NU)"
+        subtitle="Sample FHIR sync for all leftover jurisdictions (FILE_IMPORT)"
+        busy={busy === 'remainingCa'}
+        disabled={busy !== null}
+        onPress={onRemainingCa}
+      />
+      {remainingCaResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Remaining Canada result</Text>
+          <Text style={styles.meta}>
+            {remainingCaResult.jurisdictions.join(', ')} · imported{' '}
+            {remainingCaResult.totalImported} · SMART{' '}
+            {remainingCaResult.allSmartUnavailable ? 'not public' : 'mixed'}
+          </Text>
+          <Link href={remainingCaResult.deepLink} asChild>
             <Pressable>
               <Text style={styles.link}>Open portal sync →</Text>
             </Pressable>

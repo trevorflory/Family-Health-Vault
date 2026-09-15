@@ -71,6 +71,7 @@ import {
   runQcCarnetConnectorSandbox,
   runMbEchartConnectorSandbox,
   runNsYourHealthConnectorSandbox,
+  runRemainingCanadaConnectorsSandbox,
   runWeeklyDigestSandbox,
 } from '../utils/sandboxFlows';
 import { getDadSandboxMedicalEvents } from '../utils/mockSeeder';
@@ -252,5 +253,21 @@ describe('sandboxFlows core loops', () => {
     expect(result.importedCount).toBeGreaterThanOrEqual(4);
     expect(result.jurisdiction).toBe('NS');
     expect(result.smartAvailable).toBe(false);
+  });
+
+  it('runRemainingCanadaConnectorsSandbox covers NB–NU', async () => {
+    const result = await runRemainingCanadaConnectorsSandbox({
+      now: new Date('2026-09-15T12:00:00.000Z'),
+    });
+    expect(result.jurisdictions.sort()).toEqual([
+      'NB',
+      'NL',
+      'NT',
+      'NU',
+      'PE',
+      'YT',
+    ]);
+    expect(result.totalImported).toBeGreaterThanOrEqual(24);
+    expect(result.allSmartUnavailable).toBe(true);
   });
 });
