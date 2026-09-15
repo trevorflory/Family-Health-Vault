@@ -7,6 +7,29 @@ import { PATIENT_PROFILES_TABLE_DDL } from '../types/patientProfile';
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
+async function ensureMedicalEventProvenanceColumns(
+  db: SQLite.SQLiteDatabase,
+): Promise<void> {
+  const cols = await db.getAllAsync<{ name: string }>(
+    'PRAGMA table_info(MedicalEvents)',
+  );
+  const names = new Set(cols.map((c) => c.name));
+  const migrations: Array<[string, string]> = [
+    ['sourceType', `ALTER TABLE MedicalEvents ADD COLUMN sourceType TEXT NOT NULL DEFAULT 'OCR'`],
+    ['sourceAuthorityId', 'ALTER TABLE MedicalEvents ADD COLUMN sourceAuthorityId TEXT'],
+    ['externalId', 'ALTER TABLE MedicalEvents ADD COLUMN externalId TEXT'],
+    ['lastSyncedAt', 'ALTER TABLE MedicalEvents ADD COLUMN lastSyncedAt TEXT'],
+  ];
+  for (const [name, sql] of migrations) {
+    if (!names.has(name)) {
+      await db.execAsync(sql);
+    }
+  }
+  await db.execAsync(
+    'CREATE INDEX IF NOT EXISTS idx_medical_events_external ON MedicalEvents(externalId)',
+  );
+}
+
 /**
  * Shared local SQLite handle. Ensures MedicalEvents, PatientProfiles, FOIRequests.
  */
@@ -32,6 +55,7 @@ export async function getHealthcareDb(): Promise<SQLite.SQLiteDatabase> {
         CREATE INDEX IF NOT EXISTS idx_foi_patient ON FOIRequests(patientId);
         CREATE INDEX IF NOT EXISTS idx_foi_status ON FOIRequests(status);
       `);
+      await ensureMedicalEventProvenanceColumns(db);
       return db;
     })();
   }

@@ -8,9 +8,9 @@ export default function PatientScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Patient {id}</Text>
       <Text style={styles.lede}>
-        Prepare an 811 triage call, export a visit SBAR, manage proxy access,
-        upload records, or request a chart package from a provincial health
-        authority.
+        Prepare an 811 triage call, export a visit SBAR, sync provincial portal
+        records, ask your local vault, manage proxy access, upload documents, or
+        request a chart package from a health authority.
       </Text>
 
       <Link href={`/patient/${id}/call811Prep`} asChild>
@@ -22,6 +22,24 @@ export default function PatientScreen() {
       <Link href={`/patient/${id}/sbarExport`} asChild>
         <Pressable style={styles.secondaryCta}>
           <Text style={styles.secondaryCtaText}>Export Visit SBAR</Text>
+        </Pressable>
+      </Link>
+
+      <Link href={`/patient/${id}/insights`} asChild>
+        <Pressable style={styles.secondaryCta}>
+          <Text style={styles.secondaryCtaText}>Visit Prep Insights</Text>
+        </Pressable>
+      </Link>
+
+      <Link href={`/patient/${id}/portalSync`} asChild>
+        <Pressable style={styles.secondaryCta}>
+          <Text style={styles.secondaryCtaText}>Authority / Portal Sync</Text>
+        </Pressable>
+      </Link>
+
+      <Link href={`/patient/${id}/askVault`} asChild>
+        <Pressable style={styles.secondaryCta}>
+          <Text style={styles.secondaryCtaText}>Ask My Vault</Text>
         </Pressable>
       </Link>
 

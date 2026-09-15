@@ -36,8 +36,17 @@ function labEvent(): MedicalEventRecord {
     kind: 'LAB_RESULT',
     sourceUri: null,
     rawText: 'eGFR 52',
-    parsedJson: '{}',
+    parsedJson: JSON.stringify({
+      documentHint: 'lab',
+      labs: [{ testName: 'eGFR', value: '52', units: 'mL/min/1.73m2', code: 'EGFR' }],
+      prescriptions: [],
+      parserNotes: [],
+    }),
     status: 'CONFIRMED',
+    sourceType: 'OCR',
+    sourceAuthorityId: null,
+    externalId: null,
+    lastSyncedAt: null,
     createdAt: NOW.toISOString(),
     updatedAt: NOW.toISOString(),
   };

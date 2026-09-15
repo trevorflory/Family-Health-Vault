@@ -3,6 +3,10 @@
  * Source of truth for PDF generation and local persistence.
  */
 
+import type { HealthAuthorityInterop } from './interop';
+
+export type { HealthAuthorityInterop };
+
 /** All Canadian provinces and territories (ISO 3166-2:CA subdivision codes). */
 export type CanadianJurisdiction =
   | 'AB'
@@ -52,6 +56,11 @@ export interface HealthAuthorityContact {
   phone?: string;
   fax?: string;
   email?: string;
+  /**
+   * Phase B digital front-door metadata.
+   * When absent, treat as MANUAL_ONLY (FOI / OCR fallback).
+   */
+  interop?: HealthAuthorityInterop;
 }
 
 export interface PatientIdentity {

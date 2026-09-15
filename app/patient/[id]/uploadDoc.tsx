@@ -16,7 +16,10 @@ import {
   confirmParsedMedicalEvent,
   ingestDocumentFromImage,
 } from '../../../services/ocrParser';
-import { parseOcrDocument } from '../../../services/ocrTextParsers';
+import {
+  inferMedicalEventKind,
+  parseOcrDocument,
+} from '../../../services/ocrTextParsers';
 import type { LabResultParsed, OcrParsedPayload, PrescriptionParsed } from '../../../types/db';
 
 type Stage = 'capture' | 'ocr' | 'verify' | 'saved';
@@ -210,6 +213,11 @@ export default function UploadDocScreen() {
           multiline
           placeholder="Paste or correct OCR text"
         />
+
+        <Text style={styles.meta}>
+          Inferred kind: {inferMedicalEventKind(parsed)}
+          {parsed.labs[0]?.code ? ` · first lab code ${parsed.labs[0].code}` : ''}
+        </Text>
 
         <Text style={styles.sectionLabel}>Lab results ({parsed.labs.length})</Text>
         {parsed.labs.length === 0 ? (
