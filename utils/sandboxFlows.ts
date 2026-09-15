@@ -1,12 +1,42 @@
 import { DEMO_CAREGIVER_ID } from '../data/caregiverHousehold';
 import { getFacilityById } from '../data/healthAuthorities';
-import { compileDailyDigest } from '../services/digestEngine';
+import {
+  compileDailyDigest,
+  compileWeeklyDigest,
+  createLiveDigestLoaders,
+} from '../services/digestEngine';
+import {
+  buildEmergencyWalletCardHtml,
+  decodeEmergencyQR,
+  generateEmergencyQR,
+  printEmergencyWalletCard,
+  type EmergencyQRResult,
+} from '../services/emergencyPass';
 import { generateFOIPDF } from '../services/foiGenerator';
-import { dailyDigestDeepLink } from '../services/notificationScheduler';
-import { buildDadSbarHtml, synthesizeDadSbarPdf } from '../services/sbarNote';
+import {
+  dailyDigestDeepLink,
+  weeklyDigestDeepLink,
+} from '../services/notificationScheduler';
+import { parseOcrDocument } from '../services/ocrTextParsers';
+import { compileSBAR } from '../services/sbarEngine';
+import { buildSBARHtml, generateSBARPDF } from '../services/sbarGenerator';
 import { generate811Script } from '../services/triage811Engine';
+import { extractVisitDebrief } from '../services/visitDebriefExtract';
+import { saveMedicalEvent } from '../db/medicalEvents';
+import type { MedicalEventRecord, OcrParsedPayload, VisitDebriefParsed } from '../types/db';
 import type { FOIRequestPayload } from '../types/foiPayload';
-import { SEED_DAD_ID } from './mockSeeder';
+import type { SBARDocument } from '../types/sbar';
+import type { WeeklyDigestPayload } from '../types/digest';
+import {
+  SEED_CHILD_ID,
+  SEED_DAD_ID,
+  SHA_LAB_PDF_MOCK,
+  getDadSandboxMedicalEvents,
+} from './mockSeeder';
+
+/** Default post-visit transcript for sandbox voice debrief (matches seed themes). */
+export const DAD_VISIT_DEBRIEF_TRANSCRIPT =
+  'Nephrology discussed ankle swelling and evening fatigue. Keep Metformin. Need to bring blister pack next time. Monitor evening ankle size for the clinician.';
 
 export interface DigestSandboxResult {
   headline: string;
@@ -20,12 +50,30 @@ export interface DigestSandboxResult {
   };
 }
 
-/** Run daily digest and return the local push-alert payload shape. */
+export interface SbarSandboxResult {
+  uri: string;
+  html: string;
+  document: SBARDocument;
+}
+
+const DAD_SBAR_INPUT = {
+  visitReason: 'Nephrology follow-up — review kidney labs',
+  caregiverNotes:
+    'Caregiver preparing handoff after recent UTI treatment; monitoring ankle swelling and evening fatigue.',
+  appointmentId: 'appt-dad-gp',
+  includeMedicalEvents: true as const,
+};
+
+/** Run daily digest (live vault loaders) and return the local push-alert payload. */
 export async function runDailyDigestSandbox(
   caregiverId: string = DEMO_CAREGIVER_ID,
   now: Date = new Date(),
 ): Promise<DigestSandboxResult> {
-  const digest = await compileDailyDigest(caregiverId, now);
+  const digest = await compileDailyDigest(
+    caregiverId,
+    now,
+    createLiveDigestLoaders(),
+  );
   const data = dailyDigestDeepLink(caregiverId);
   return {
     headline: digest.headline,
@@ -40,17 +88,38 @@ export async function runDailyDigestSandbox(
   };
 }
 
-/** Generate Dad's 1-page SBAR PDF. */
-export async function runDadSbarSandbox(): Promise<{
-  uri: string;
-  html: string;
-}> {
-  return synthesizeDadSbarPdf();
+/**
+ * Generate Dad's 1-page SBAR via compileSBAR + generateSBARPDF (same path as export UI).
+ * Inject seed MedicalEvents when the vault is empty so one-click demos still fold OCR + debrief.
+ */
+export async function runDadSbarSandbox(options?: {
+  now?: Date;
+  medicalEvents?: MedicalEventRecord[];
+}): Promise<SbarSandboxResult> {
+  const now = options?.now ?? new Date();
+  const medicalEvents =
+    options?.medicalEvents ?? getDadSandboxMedicalEvents(now);
+
+  const document = await compileSBAR(SEED_DAD_ID, DAD_SBAR_INPUT, {
+    now,
+    medicalEvents,
+  });
+  const html = buildSBARHtml(document);
+  const uri = await generateSBARPDF(document);
+  return { uri, html, document };
 }
 
-/** HTML-only SBAR (unit-testable without expo-print). */
-export function previewDadSbarHtml(): string {
-  return buildDadSbarHtml();
+/** HTML-only SBAR preview (unit-testable without expo-print). */
+export async function previewDadSbarHtml(options?: {
+  now?: Date;
+  medicalEvents?: MedicalEventRecord[];
+}): Promise<string> {
+  const now = options?.now ?? new Date();
+  const document = await compileSBAR(SEED_DAD_ID, DAD_SBAR_INPUT, {
+    now,
+    medicalEvents: options?.medicalEvents ?? getDadSandboxMedicalEvents(now),
+  });
+  return buildSBARHtml(document);
 }
 
 /** Generate printable SK HIPA FOI request for Dad → Saskatchewan Health Authority. */
@@ -100,10 +169,168 @@ export async function runSkHipaFoiSandbox(): Promise<{
   return { uri, payload };
 }
 
-/** Trigger 811 teleprompter script for Dad with flustered-caregiver symptoms. */
+/** Trigger 811 dispatcher cue sheet for Dad with flustered-caregiver symptoms. */
 export async function run811ScriptSandbox() {
   return generate811Script(SEED_DAD_ID, [
     'Sudden onset confusion',
     'Mild fever',
   ]);
 }
+
+/** Force Leo parental POA age-out hand-off (demo) and return persisted log stats. */
+export async function runLeoAgeOutSandbox(now: Date = new Date()) {
+  const {
+    executeAgeOutHandOff,
+    listAccessLog,
+    listProxyGrants,
+    resetProxyAccessStore,
+  } = await import('../services/proxyAccessEngine');
+  await resetProxyAccessStore(now);
+  const result = await executeAgeOutHandOff(
+    SEED_CHILD_ID,
+    DEMO_CAREGIVER_ID,
+    16,
+    now,
+    { force: true },
+  );
+  const grants = await listProxyGrants(SEED_CHILD_ID);
+  const log = await listAccessLog(SEED_CHILD_ID);
+  return {
+    ...result,
+    grantStatuses: grants.map((g) => g.status),
+    accessLogCount: log.length,
+  };
+}
+
+export interface EmergencyPassSandboxResult {
+  pass: EmergencyQRResult;
+  html: string;
+  pdfUri: string;
+  /** Confirmed round-trip decode for QA (never log this in production UI). */
+  decodedName: string;
+}
+
+/** Generate Dad's encrypted emergency QR + wallet-card PDF (same services as screen). */
+export async function runDadEmergencyPassSandbox(options?: {
+  now?: Date;
+  secret?: string;
+}): Promise<EmergencyPassSandboxResult> {
+  const now = options?.now ?? new Date();
+  const pass = await generateEmergencyQR(SEED_DAD_ID, {
+    now,
+    secret: options?.secret,
+  });
+  const html = buildEmergencyWalletCardHtml(pass);
+  const pdfUri = await printEmergencyWalletCard(pass);
+  const decoded = await decodeEmergencyQR(pass.encryptedPayload, {
+    now,
+    secret: options?.secret,
+  });
+  return {
+    pass,
+    html,
+    pdfUri,
+    decodedName: decoded.fullName,
+  };
+}
+
+export interface WeeklyDigestSandboxResult {
+  digest: WeeklyDigestPayload;
+  pushPayload: {
+    title: string;
+    body: string;
+    data: ReturnType<typeof weeklyDigestDeepLink>;
+  };
+}
+
+/** Run weekly Sunday digest + push-alert payload shape. */
+export async function runWeeklyDigestSandbox(
+  caregiverId: string = DEMO_CAREGIVER_ID,
+  now: Date = new Date(),
+): Promise<WeeklyDigestSandboxResult> {
+  const digest = await compileWeeklyDigest(
+    caregiverId,
+    now,
+    createLiveDigestLoaders(),
+  );
+  return {
+    digest,
+    pushPayload: {
+      title: 'Weekly Sunday Overview',
+      body: digest.narrativeSummary,
+      data: weeklyDigestDeepLink(caregiverId),
+    },
+  };
+}
+
+export interface OcrLabSandboxResult {
+  record: MedicalEventRecord;
+  parsed: OcrParsedPayload;
+  rawText: string;
+  deepLink: string;
+}
+
+/**
+ * Parse SHA lab mock via OCR text parsers and persist MedicalEvents (PENDING_REVIEW).
+ * Skips Tesseract — same parse/save path as verification after capture.
+ */
+export async function runDadOcrLabSandbox(options?: {
+  rawText?: string;
+  eventId?: string;
+  status?: MedicalEventRecord['status'];
+}): Promise<OcrLabSandboxResult> {
+  const rawText = options?.rawText ?? SHA_LAB_PDF_MOCK;
+  const parsed = parseOcrDocument(rawText);
+  const record = await saveMedicalEvent({
+    id: options?.eventId ?? 'me_sandbox_ocr_lab_dad',
+    patientId: SEED_DAD_ID,
+    kind: 'LAB_RESULT',
+    sourceUri: 'mock://sha/lab-report-sandbox.pdf',
+    rawText,
+    parsed,
+    status: options?.status ?? 'PENDING_REVIEW',
+  });
+  return {
+    record,
+    parsed,
+    rawText,
+    deepLink: `/patient/${SEED_DAD_ID}/uploadDoc`,
+  };
+}
+
+export interface VoiceDebriefSandboxResult {
+  record: MedicalEventRecord;
+  transcript: string;
+  extracted: VisitDebriefParsed;
+  deepLink: string;
+}
+
+/**
+ * Extract visit debrief from transcript and persist VISIT_DEBRIEF MedicalEvent.
+ * Skips mic/Whisper — same extract/save path as review after recording.
+ */
+export async function runDadVoiceDebriefSandbox(options?: {
+  transcript?: string;
+  eventId?: string;
+  status?: MedicalEventRecord['status'];
+}): Promise<VoiceDebriefSandboxResult> {
+  const transcript = options?.transcript ?? DAD_VISIT_DEBRIEF_TRANSCRIPT;
+  const extracted = extractVisitDebrief(transcript);
+  const record = await saveMedicalEvent({
+    id: options?.eventId ?? 'me_sandbox_visit_debrief_dad',
+    patientId: SEED_DAD_ID,
+    kind: 'VISIT_DEBRIEF',
+    sourceUri: 'mock://voice/dad-nephrology-debrief-sandbox.m4a',
+    rawText: transcript,
+    parsed: extracted,
+    status: options?.status ?? 'PENDING_REVIEW',
+  });
+  return {
+    record,
+    transcript,
+    extracted,
+    deepLink: `/patient/${SEED_DAD_ID}/voiceDebrief`,
+  };
+}
+
+export { SHA_LAB_PDF_MOCK };

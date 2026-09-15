@@ -2,6 +2,7 @@ import { DEMO_CAREGIVER_ID } from '../data/caregiverHousehold';
 import { getFacilityById } from '../data/healthAuthorities';
 import { saveMedicalEvent } from '../db/medicalEvents';
 import { upsertPatientProfile } from '../db/patientProfiles';
+import type { MedicalEventRecord } from '../types/db';
 import type { SeedMedication, SeedVaccine } from '../types/patientProfile';
 
 export const SEED_DAD_ID = 'pt-7801';
@@ -200,4 +201,77 @@ export function getChildSeedFixture() {
     displayName: 'Child (4) - Regina',
     vaccines: CHILD_SK_VACCINES,
   };
+}
+
+/**
+ * Seed-equivalent MedicalEvents for SBAR sandbox / unit tests (no SQLite).
+ * Mirrors `seedLocalSandboxData` lab + visit debrief payloads.
+ */
+export function getDadSandboxMedicalEvents(
+  now: Date = new Date(),
+): MedicalEventRecord[] {
+  const stamp = now.toISOString();
+  return [
+    {
+      id: 'me_seed_sha_lab_dad',
+      patientId: SEED_DAD_ID,
+      kind: 'LAB_RESULT',
+      sourceUri: 'mock://sha/lab-report-2026-09-02.pdf',
+      rawText: SHA_LAB_PDF_MOCK,
+      parsedJson: JSON.stringify({
+        documentHint: 'lab',
+        labs: [
+          {
+            testName: 'eGFR',
+            value: '55',
+            units: 'mL/min/1.73m2',
+            referenceRange: '60-120',
+          },
+          {
+            testName: 'Creatinine',
+            value: '1.4',
+            units: 'mg/dL',
+            referenceRange: '0.7-1.3',
+          },
+          {
+            testName: 'HbA1c',
+            value: '7.2',
+            units: '%',
+            referenceRange: '<5.7',
+          },
+        ],
+        prescriptions: [],
+        parserNotes: ['Seeded mock Saskatchewan Health Authority lab PDF'],
+      }),
+      status: 'CONFIRMED',
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+    {
+      id: 'me_seed_visit_debrief_dad',
+      patientId: SEED_DAD_ID,
+      kind: 'VISIT_DEBRIEF',
+      sourceUri: 'mock://voice/dad-nephrology-debrief.m4a',
+      rawText:
+        'Nephrology talked about ankle swelling and evening fatigue. Keep Metformin. Bring blister pack next time.',
+      parsedJson: JSON.stringify({
+        eventType: 'VISIT_DEBRIEF',
+        discussionSummary:
+          'Nephrology discussed ankle swelling and evening fatigue; caregiver to monitor both before next labs.',
+        dosageChanges: [
+          {
+            medicationName: 'Metformin',
+            changeDescription: 'Continue current dose pending next labs',
+          },
+        ],
+        actionItems: [
+          'Bring blister pack to next visit',
+          'Note evening ankle size for clinician',
+        ],
+      }),
+      status: 'CONFIRMED',
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+  ];
 }

@@ -76,6 +76,26 @@ export const EMERGENCY_PROFILES: Record<string, EmergencyPatientContext> = {
     primaryCaregiverPhone: '+1-306-555-0142',
     criticalAlerts: ['Pediatric patient — contact caregiver first'],
   },
+  /** Seed / sandbox Child (4) — aligns with SEED_CHILD_ID / proxy Leo profile. */
+  'pt-leo-04': {
+    patientId: 'pt-leo-04',
+    fullName: 'Leo Ellis',
+    ageYears: 4,
+    allergies: ['NKDA'],
+    activeMedications: ["Children's multivitamin 1 chewable daily"],
+    emergencyContacts: [
+      {
+        name: 'Alex Ellis',
+        relationship: 'Parent / primary caregiver',
+        phone: '+1-306-555-0142',
+      },
+    ],
+    primaryCaregiverPhone: '+1-306-555-0142',
+    criticalAlerts: [
+      'Pediatric patient (age 4) — contact caregiver first',
+      'Up to date on SK childhood vaccines through age 3 (see vault)',
+    ],
+  },
 };
 
 export function getEmergencyProfile(

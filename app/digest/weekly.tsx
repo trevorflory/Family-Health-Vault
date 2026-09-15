@@ -9,7 +9,10 @@ import {
   View,
 } from 'react-native';
 import { DEMO_CAREGIVER_ID } from '../../data/caregiverHousehold';
-import { compileWeeklyDigest } from '../../services/digestEngine';
+import {
+  compileWeeklyDigest,
+  createLiveDigestLoaders,
+} from '../../services/digestEngine';
 import type { WeeklyDigestPayload } from '../../types/digest';
 
 export default function WeeklyDigestScreen() {
@@ -24,7 +27,13 @@ export default function WeeklyDigestScreen() {
     try {
       setBusy(true);
       setError(null);
-      setDigest(await compileWeeklyDigest(caregiverId));
+      setDigest(
+        await compileWeeklyDigest(
+          caregiverId,
+          new Date(),
+          createLiveDigestLoaders(),
+        ),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to compile weekly digest');
     } finally {

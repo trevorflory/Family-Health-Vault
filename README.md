@@ -51,27 +51,44 @@ Web uses `sessionStorage`-backed DB stubs (`db/*.web.ts`) so Sandbox seed surviv
 4. Visit reason e.g. `Nephrology follow-up — review kidney labs` → **Generate 1-page SBAR**.
 5. Expect **Vault sources included** with visit debrief + lab OCR (eGFR), Background/Assessment filled from those events, and the Educational Context Summarizer notice.
 
+## Manual test: Digest vault truthfulness
+
+1. Open **Daily Morning Digest** (`/digest/daily`).
+2. Confirm Dad shows fixture FOI + missing lab until vault data exists.
+3. Seed sandbox (lab event) → reload digest → Dad’s **MISSING_LAB_UPLOAD** should clear.
+4. Save an FOI **DRAFT** for Dad via wizard → after 30+ days (or inject aged `createdAt` in tests) digest lists live FOI overdue; **Review FOI Status** opens `/patient/pt-7801/foiStatus`.
+5. Tap **Mark Meds Given** → checkmarks persist after reload; weekly adherence can rise.
+
+## Manual test: Emergency Pass
+
+1. Home → **QA Sandbox** → **6. Dad Emergency Pass**.
+2. Confirm result shows allergies (Penicillin), `EPv1.` token prefix, and a wallet-card PDF URI.
+3. Open **Emergency QR screen** (`/patient/pt-7801/emergencyPass`) — high-contrast QR is ciphertext-only.
+4. From Leo proxy access, **Open Emergency QR Pass** should load Leo’s pediatric profile (`pt-leo-04`).
+
 ## Modules (map)
 
 ### QA Local Testing Sandbox
 
-- `utils/mockSeeder.ts` — Dad (78) / Child (4) SQLite seed fixtures
-- `utils/sandboxFlows.ts` — digest / SBAR / SK HIPA FOI / 811 one-click runners
-- `services/sbarNote.ts` — Dad SBAR HTML + `expo-print` PDF
+- `utils/mockSeeder.ts` — Dad (78) / Child (4) SQLite seed fixtures + MedicalEvents for SBAR
+- `utils/sandboxFlows.ts` — digest / compileSBAR / SK HIPA FOI / 811 one-click runners
 - `app/sandbox/index.tsx` — QA console for core loops
 
 ### Multi-Generational Proxy Access
 
 - `types/proxyAccess.ts` / `data/proxyGrants.ts` — roles, permissions, demo household grants
-- `services/proxyAccessEngine.ts` — grant/revoke, permission checks, immutable access log, age-out hand-off
+- `db/proxyAccess.ts` (+ `.web.ts`) — persisted `ProxyGrants` + append-only `ProxyAccessLog`
+- `services/proxyAccessEngine.ts` — async grant/revoke, permission checks, age-out hand-off
 - `app/patient/[id]/proxyAccess.tsx` — manage proxies, invite sibling, age-out, link to Emergency Pass
+- Sandbox: `runLeoAgeOutSandbox()` force hand-off for Leo
 
 ### Emergency Offline Pass
 
 - `services/emergencyPass.ts` — `generateEmergencyQR()` + wallet-card PDF HTML/`expo-print`
 - `services/emergencyCrypto.ts` — AES-256-GCM encrypt/decrypt
-- `data/emergencyProfiles.ts` — allergies / meds / contacts for offline export
+- `data/emergencyProfiles.ts` — allergies / meds / contacts for offline export (includes `pt-leo-04`)
 - `app/patient/[id]/emergencyPass.tsx` — high-contrast QR + printable wallet card
+- Sandbox: `runDadEmergencyPassSandbox()` QR + wallet PDF
 
 ### Local LLM Bridge (Simulator)
 
@@ -94,7 +111,10 @@ Web uses `sessionStorage`-backed DB stubs (`db/*.web.ts`) so Sandbox seed surviv
 
 ### Caregiver Digests (Sandwich Generation)
 
-- `services/digestEngine.ts` — `compileDailyDigest()` / `compileWeeklyDigest()`
+- `services/digestEngine.ts` — `compileDailyDigest()` / `compileWeeklyDigest()` with live FOI / MedicalEvents / med-dose loaders
+- `services/digestOverdue.ts` — pure overdue merge (DRAFT FOI >30d; labs clear missing-upload fixtures)
+- `db/medDoses.ts` — Mark Meds Given persistence
+- `app/patient/[id]/foiStatus.tsx` — vault-backed FOI status list (digest CTA target)
 - `services/notificationScheduler.ts` — local pushes at 7:00 AM daily and 4:00 PM Sundays (`expo-notifications`)
 - `app/digest/daily.tsx` / `app/digest/weekly.tsx` — deep-link dashboards
 - `data/caregiverHousehold.ts` — demo household (Dad 78 Saskatoon, Leo 4 Regina, Self)
@@ -109,13 +129,15 @@ Web uses `sessionStorage`-backed DB stubs (`db/*.web.ts`) so Sandbox seed surviv
 
 ### 811 Call Assistant
 
-- `services/triage811Engine.ts` — `generate811Script()` contextual summarizer (no diagnosis / no prescribing)
-- `app/patient/[id]/call811Prep.tsx` — symptom checklist, teleprompter script, `tel:811` call button
+- `services/triage811Engine.ts` — `generate811Script()` dispatcher cue sheet (nurse asks → vault answers; no diagnosis / no prescribing)
+- `app/patient/[id]/call811Prep.tsx` — symptom checklist, dispatcher Q&A teleprompter, `tel:811` call button
 - `data/patientVault.ts` — multi-generational demo vault profiles
 
 ### FOI / Access to Information
 
-- `services/foiGenerator.ts` — `generateFOIPDF()` via `expo-print` with provincial legal templates (ON PHIPA, SK HIPA, AB HIA, BC FIPPA/PIPA)
+- `services/foiGenerator.ts` — `generateFOIPDF()` via `expo-print` with legal templates for all 13 Canadian jurisdictions
+- `data/foiJurisdictions.ts` — province/territory picker catalog + act short names
+- `data/healthAuthorities.ts` — facility address templates (≥1 per jurisdiction)
 - `app/patient/[id]/foiWizard.tsx` — 4-step wizard (jurisdiction/facility → scope → authority proof → preview/actions)
 - `db/foiRequests.ts` — local SQLite `FOIRequests` table with `DRAFT` / `DISPATCHED` status
 

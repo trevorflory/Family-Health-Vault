@@ -3,7 +3,37 @@
  * Source of truth for PDF generation and local persistence.
  */
 
-export type CanadianJurisdiction = 'ON' | 'SK' | 'AB' | 'BC';
+/** All Canadian provinces and territories (ISO 3166-2:CA subdivision codes). */
+export type CanadianJurisdiction =
+  | 'AB'
+  | 'BC'
+  | 'MB'
+  | 'NB'
+  | 'NL'
+  | 'NS'
+  | 'NT'
+  | 'NU'
+  | 'ON'
+  | 'PE'
+  | 'QC'
+  | 'SK'
+  | 'YT';
+
+export const ALL_CANADIAN_JURISDICTIONS: readonly CanadianJurisdiction[] = [
+  'AB',
+  'BC',
+  'MB',
+  'NB',
+  'NL',
+  'NS',
+  'NT',
+  'NU',
+  'ON',
+  'PE',
+  'QC',
+  'SK',
+  'YT',
+] as const;
 
 export type FOIRequestStatus = 'DRAFT' | 'DISPATCHED';
 

@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { FOI_JURISDICTION_OPTIONS } from '../../../data/foiJurisdictions';
 import {
   HEALTH_AUTHORITIES,
   facilitiesForJurisdiction,
@@ -27,13 +28,6 @@ import type {
   FOIScopeItem,
   HealthAuthorityContact,
 } from '../../../types/foiPayload';
-
-const JURISDICTIONS: { code: CanadianJurisdiction; label: string }[] = [
-  { code: 'ON', label: 'Ontario (PHIPA)' },
-  { code: 'SK', label: 'Saskatchewan (HIPA)' },
-  { code: 'AB', label: 'Alberta (HIA)' },
-  { code: 'BC', label: 'British Columbia (FIPPA/PIPA)' },
-];
 
 const SCOPE_OPTIONS: { id: FOIScopeItem; label: string }[] = [
   { id: 'FULL_CHART', label: 'Full historical chart' },
@@ -278,9 +272,15 @@ export default function FOIWizardScreen() {
       {step === 1 && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>1. Jurisdiction & Facility</Text>
-          <Text style={styles.label}>Province / statute</Text>
+          <Text style={styles.label}>
+            Province or territory / governing access statute
+          </Text>
+          <Text style={styles.hint}>
+            All 13 Canadian jurisdictions. Selecting a region loads matching
+            health-authority address templates and the correct legal declaration.
+          </Text>
           <View style={styles.chipRow}>
-            {JURISDICTIONS.map((j) => (
+            {FOI_JURISDICTION_OPTIONS.map((j) => (
               <Pressable
                 key={j.code}
                 onPress={() => onSelectJurisdiction(j.code)}
@@ -288,6 +288,9 @@ export default function FOIWizardScreen() {
                   styles.chip,
                   jurisdiction === j.code && styles.chipActive,
                 ]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: jurisdiction === j.code }}
+                accessibilityLabel={`${j.regionName}, ${j.actShortName}`}
               >
                 <Text
                   style={[
@@ -300,6 +303,11 @@ export default function FOIWizardScreen() {
               </Pressable>
             ))}
           </View>
+          <Text style={styles.selectedJurisdiction}>
+            {FOI_JURISDICTION_OPTIONS.find((j) => j.code === jurisdiction)
+              ?.regionName ?? jurisdiction}{' '}
+            · {legal.actFullName}
+          </Text>
 
           <Text style={[styles.label, { marginTop: 16 }]}>
             Health authority / facility template
@@ -501,6 +509,13 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 17, fontWeight: '700', color: '#143536' },
   label: { fontSize: 13, fontWeight: '600', color: '#5a7374' },
+  hint: { fontSize: 12, color: '#5a7374', lineHeight: 17 },
+  selectedJurisdiction: {
+    fontSize: 12,
+    color: '#355556',
+    lineHeight: 17,
+    marginTop: 4,
+  },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderWidth: 1,

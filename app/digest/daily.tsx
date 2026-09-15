@@ -10,9 +10,20 @@ import {
   View,
 } from 'react-native';
 import { DEMO_CAREGIVER_ID } from '../../data/caregiverHousehold';
-import { compileDailyDigest } from '../../services/digestEngine';
+import { markMedDosesGiven } from '../../db/medDoses';
+import {
+  compileDailyDigest,
+  createLiveDigestLoaders,
+} from '../../services/digestEngine';
 import { scheduleDigestNotifications } from '../../services/notificationScheduler';
 import type { DailyDigestPayload, DailyDependantSection } from '../../types/digest';
+
+function localDateKey(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function QuickActions({
   section,
@@ -21,7 +32,7 @@ function QuickActions({
   section: DailyDependantSection;
   onMarkMeds: (patientId: string) => void;
 }) {
-  const hasMeds = section.medsToday.length > 0;
+  const hasMeds = section.medsToday.some((m) => !m.given);
   const hasAppt = section.appointmentsWithin72h.length > 0;
   const hasFoi = section.overdueTasks.some((t) => t.kind === 'FOI_PENDING');
 
@@ -51,7 +62,10 @@ function QuickActions({
         </Link>
       ) : null}
       {hasFoi ? (
-        <Link href={`/patient/${section.dependant.patientId}/foiWizard`} asChild>
+        <Link
+          href={`/patient/${section.dependant.patientId}/foiStatus`}
+          asChild
+        >
           <Pressable style={styles.actionBtn}>
             <Text style={styles.actionText}>Review FOI Status</Text>
           </Pressable>
@@ -68,13 +82,16 @@ export default function DailyDigestScreen() {
   const [digest, setDigest] = useState<DailyDigestPayload | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [givenIds, setGivenIds] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     try {
       setBusy(true);
       setError(null);
-      const payload = await compileDailyDigest(caregiverId);
+      const payload = await compileDailyDigest(
+        caregiverId,
+        new Date(),
+        createLiveDigestLoaders(),
+      );
       setDigest(payload);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to compile digest');
@@ -87,9 +104,30 @@ export default function DailyDigestScreen() {
     void load();
   }, [load]);
 
-  function markMedsGiven(patientId: string) {
-    setGivenIds((prev) => ({ ...prev, [patientId]: true }));
-    Alert.alert('Meds marked', 'Morning doses marked given for this profile.');
+  async function markMedsGiven(patientId: string) {
+    if (!digest) return;
+    const section = digest.sections.find(
+      (s) => s.dependant.patientId === patientId,
+    );
+    if (!section) return;
+    const ids = section.medsToday.map((m) => m.medicationId);
+    try {
+      await markMedDosesGiven({
+        patientId,
+        medicationIds: ids,
+        dateKey: localDateKey(),
+      });
+      await load();
+      Alert.alert(
+        'Meds marked',
+        'Doses saved for today’s digest and weekly adherence.',
+      );
+    } catch (err) {
+      Alert.alert(
+        'Could not save',
+        err instanceof Error ? err.message : 'Med mark failed',
+      );
+    }
   }
 
   async function enableNotifications() {
@@ -165,9 +203,7 @@ export default function DailyDigestScreen() {
               <Text key={m.medicationId} style={styles.line}>
                 {m.scheduledTime} · {m.name}
                 {m.dose ? ` ${m.dose}` : ''}
-                {givenIds[section.dependant.patientId] || m.given
-                  ? ' ✓'
-                  : ''}
+                {m.given ? ' ✓' : ''}
               </Text>
             ))
           )}
@@ -240,7 +276,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cardTitle: { fontSize: 18, fontWeight: '700', color: '#143536' },
-  role: { fontSize: 12, color: '#5a7374', textTransform: 'capitalize', marginBottom: 4 },
+  role: {
+    fontSize: 12,
+    color: '#5a7374',
+    textTransform: 'capitalize',
+    marginBottom: 4,
+  },
   sectionLabel: {
     marginTop: 8,
     fontSize: 12,

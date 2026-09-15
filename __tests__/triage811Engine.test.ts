@@ -1,13 +1,14 @@
 import {
+  buildDispatcherCueSheet,
   formatActiveMedications,
   generate811Script,
   REGULATORY_NOTICE,
 } from '../services/triage811Engine';
-import { PATIENT_VAULT } from '../data/patientVault';
+import { PATIENT_VAULT, getPatientVaultProfile } from '../data/patientVault';
 import type { PatientVaultProfile } from '../types/triage811';
 
 describe('triage811Engine', () => {
-  it('formats a senior multi-generational profile into a ~30s spoken script', async () => {
+  it('formats a senior profile into an opening + dispatcher cue sheet', async () => {
     const result = await generate811Script('pt-7801', [
       'Sudden onset confusion',
       'Mild fever',
@@ -15,11 +16,23 @@ describe('triage811Engine', () => {
 
     expect(result.spokenIntroScript).toContain('78-year-old');
     expect(result.spokenIntroScript).toContain('father');
+    expect(result.spokenIntroScript).toMatch(/Bob|Robert/i);
     expect(result.spokenIntroScript).toMatch(/Sudden onset confusion/i);
     expect(result.spokenIntroScript).toMatch(/Mild fever/i);
-    expect(result.spokenIntroScript).toMatch(/Type 2 Diabetes/i);
-    expect(result.spokenIntroScript).toMatch(/Metformin 500mg/i);
-    expect(result.spokenIntroScript).toMatch(/UTI treated/i);
+    expect(result.spokenIntroScript.toLowerCase()).toMatch(
+      /history and medications ready/i,
+    );
+
+    expect(result.dispatcherCueSheet).toHaveLength(4);
+    const [who, whats, history, recent] = result.dispatcherCueSheet;
+    expect(who.dispatcherAsks).toMatch(/who are you calling about/i);
+    expect(who.readyAnswer).toMatch(/Robert Ellis/i);
+    expect(who.readyAnswer).toMatch(/78-year-old/i);
+    expect(whats.readyAnswer).toMatch(/Sudden onset confusion/i);
+    expect(history.readyAnswer).toMatch(/Type 2 Diabetes/i);
+    expect(history.readyAnswer).toMatch(/Metformin 500mg/i);
+    expect(recent.readyAnswer).toMatch(/UTI treated/i);
+
     expect(result.historicalRedFlags.some((f) => /CKD|kidney/i.test(f))).toBe(
       true,
     );
@@ -31,6 +44,16 @@ describe('triage811Engine', () => {
     );
   });
 
+  it('buildDispatcherCueSheet mirrors nurse-asks / caregiver-answers framing', () => {
+    const profile = getPatientVaultProfile('pt-7801')!;
+    const sheet = buildDispatcherCueSheet(profile, ['Mild fever']);
+    for (const cue of sheet) {
+      expect(cue.dispatcherAsks.length).toBeGreaterThan(10);
+      expect(cue.readyAnswer.length).toBeGreaterThan(5);
+    }
+    expect(sheet[2].dispatcherAsks).toMatch(/conditions|medications/i);
+  });
+
   it('formats a pediatric profile without inventing chronic history', async () => {
     const result = await generate811Script('pt-child-09', [
       'Mild fever',
@@ -38,8 +61,11 @@ describe('triage811Engine', () => {
     ]);
     expect(result.spokenIntroScript).toContain('9-year-old');
     expect(result.spokenIntroScript).toContain('daughter');
-    expect(result.spokenIntroScript).not.toMatch(/Type 2 Diabetes|Metformin|CKD/i);
-    expect(result.spokenIntroScript).toMatch(/vaccinations/i);
+    expect(result.dispatcherCueSheet[2].readyAnswer).toMatch(/none listed/i);
+    expect(result.dispatcherCueSheet[2].readyAnswer).not.toMatch(
+      /Type 2 Diabetes|Metformin|CKD/i,
+    );
+    expect(result.dispatcherCueSheet[3].readyAnswer).toMatch(/vaccinations/i);
     expect(result.questionsToAskNurse[2]).toMatch(/child/i);
   });
 
@@ -49,16 +75,20 @@ describe('triage811Engine', () => {
       'Worsening cough',
     ]);
     expect(result.spokenIntroScript).toContain('50-year-old');
-    expect(result.spokenIntroScript).toMatch(/Asthma/i);
-    expect(result.spokenIntroScript).toMatch(/Salbutamol inhaler/i);
+    expect(result.dispatcherCueSheet[2].readyAnswer).toMatch(/Asthma/i);
+    expect(result.dispatcherCueSheet[2].readyAnswer).toMatch(
+      /Salbutamol inhaler/i,
+    );
     expect(result.historicalRedFlags.some((f) => /Asthma/i.test(f))).toBe(true);
   });
 
   it('does not crash when medication dose/frequency fields are null or missing', async () => {
-    const result = await generate811Script('pt-7801', ['Mild fever']);
-    // Vitamin D has undefined dose + null frequency; null medication slot exists
-    expect(result.spokenIntroScript).toMatch(/Vitamin D/);
-    expect(result.spokenIntroScript).not.toMatch(/undefined|null/i);
+    const result = await generate811Script('pt-2044', ['Mild fever']);
+    // Salbutamol has null dose; undefined medication slot exists
+    expect(result.dispatcherCueSheet[2].readyAnswer).toMatch(/Salbutamol/i);
+    expect(result.dispatcherCueSheet[2].readyAnswer).not.toMatch(
+      /undefined|null/i,
+    );
     expect(result.questionsToAskNurse).toHaveLength(3);
   });
 
@@ -83,7 +113,9 @@ describe('triage811Engine', () => {
   });
 
   it('keeps vault profiles multi-generational for caregiver context', () => {
-    const ages = Object.values(PATIENT_VAULT).map((p: PatientVaultProfile) => p.ageYears);
+    const ages = Object.values(PATIENT_VAULT).map(
+      (p: PatientVaultProfile) => p.ageYears,
+    );
     expect(Math.min(...ages)).toBeLessThan(18);
     expect(Math.max(...ages)).toBeGreaterThanOrEqual(65);
   });
