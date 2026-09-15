@@ -50,6 +50,7 @@
 10. British Columbia (`bc-health-gateway`): Health Gateway Download records FILE_IMPORT (`importBcHealthGatewayLabText`, `importBcFhirJsonExport`); FOI for charts still uses Fraser/VCH/Island templates.
 11. Ontario (`on-patient-portals`): fragmented MyChart/OLIS FILE_IMPORT (`importOnMyChartLabText`, `importOnFhirJsonExport`); FOI via UHN/Sunnybrook/OH under PHIPA. Do not invent a unified provincial SMART endpoint.
 12. Québec (`qc-carnet-sante`): Carnet santé Québec FILE_IMPORT (`importQcCarnetLabText`, `importQcFhirJsonExport`); FOI via treating CIUSSS / Santé Québec.
+13. Manitoba (`mb-shared`): eChart is clinician-facing — FILE_IMPORT via care-org portal OCR or eChart PHI lab copy (`importMbEchartLabText`, `importMbFhirJsonExport`); FOI via Shared Health / WRHA under PHIA. Do not invent a patient SMART endpoint.
 
 ## Proxy access rules
 

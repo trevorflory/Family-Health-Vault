@@ -32,6 +32,7 @@ import {
   runBcHealthGatewayConnectorSandbox,
   runOnPortalConnectorSandbox,
   runQcCarnetConnectorSandbox,
+  runMbEchartConnectorSandbox,
   runWeeklyDigestSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
@@ -41,6 +42,7 @@ import {
   type BcConnectorSandboxResult,
   type OnConnectorSandboxResult,
   type QcConnectorSandboxResult,
+  type MbConnectorSandboxResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
 } from '../../utils/sandboxFlows';
@@ -61,6 +63,7 @@ type BusyKey =
   | 'bcConnect'
   | 'onConnect'
   | 'qcConnect'
+  | 'mbConnect'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -96,6 +99,8 @@ export default function SandboxHomeScreen() {
     useState<OnConnectorSandboxResult | null>(null);
   const [qcConnectResult, setQcConnectResult] =
     useState<QcConnectorSandboxResult | null>(null);
+  const [mbConnectResult, setMbConnectResult] =
+    useState<MbConnectorSandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -225,6 +230,13 @@ export default function SandboxHomeScreen() {
       runQcCarnetConnectorSandbox(),
     );
     if (result) setQcConnectResult(result);
+  }
+
+  async function onMbConnect() {
+    const result = await withBusy('mbConnect', () =>
+      runMbEchartConnectorSandbox(),
+    );
+    if (result) setMbConnectResult(result);
   }
 
   return (
@@ -454,6 +466,29 @@ export default function SandboxHomeScreen() {
             {qcConnectResult.smartAvailable ? 'available' : 'not public'}
           </Text>
           <Link href={qcConnectResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open portal sync →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="3g. MB / eChart Shared Health connector"
+        subtitle="Sample FHIR sync + eChart PHI playbook (FILE_IMPORT; SMART not public)"
+        busy={busy === 'mbConnect'}
+        disabled={busy !== null}
+        onPress={onMbConnect}
+      />
+      {mbConnectResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>MB connector result</Text>
+          <Text style={styles.meta}>
+            Imported {mbConnectResult.importedCount} · {mbConnectResult.jurisdiction}{' '}
+            · playbook {mbConnectResult.playbookSteps} · SMART{' '}
+            {mbConnectResult.smartAvailable ? 'available' : 'not public'}
+          </Text>
+          <Link href={mbConnectResult.deepLink} asChild>
             <Pressable>
               <Text style={styles.link}>Open portal sync →</Text>
             </Pressable>
