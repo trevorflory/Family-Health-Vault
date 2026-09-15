@@ -47,6 +47,7 @@
 7. Ask-my-vault / educational restatements always use `SAMD_SYSTEM_PROMPT` posture — cite MedicalEvent ids; never diagnose or prescribe.
 8. Saskatchewan (`sk-sha` / MySask): public path is PDF/lab **FILE_IMPORT** (`importSkMySaskLabText`, `importSkFhirJsonExport`); do not claim a live SMART OAuth endpoint — see `SK_SMART_READINESS` in `data/skInterop.ts`.
 9. Alberta (`ab-ahs` / MyHealth Records): same FILE_IMPORT pattern (`importAbMyHealthLabText`, `importAbFhirJsonExport`); see `data/abInterop.ts`. Shared helpers live in `services/interop/connector.ts`.
+10. British Columbia (`bc-health-gateway`): Health Gateway Download records FILE_IMPORT (`importBcHealthGatewayLabText`, `importBcFhirJsonExport`); FOI for charts still uses Fraser/VCH/Island templates.
 
 ## Proxy access rules
 

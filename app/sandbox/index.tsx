@@ -29,12 +29,14 @@ import {
   runSkHipaFoiSandbox,
   runSkShaConnectorSandbox,
   runAbMyHealthConnectorSandbox,
+  runBcHealthGatewayConnectorSandbox,
   runWeeklyDigestSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
   type OcrLabSandboxResult,
   type SkConnectorSandboxResult,
   type AbConnectorSandboxResult,
+  type BcConnectorSandboxResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
 } from '../../utils/sandboxFlows';
@@ -52,6 +54,7 @@ type BusyKey =
   | 'voice'
   | 'skConnect'
   | 'abConnect'
+  | 'bcConnect'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -81,6 +84,8 @@ export default function SandboxHomeScreen() {
     useState<SkConnectorSandboxResult | null>(null);
   const [abConnectResult, setAbConnectResult] =
     useState<AbConnectorSandboxResult | null>(null);
+  const [bcConnectResult, setBcConnectResult] =
+    useState<BcConnectorSandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -189,6 +194,13 @@ export default function SandboxHomeScreen() {
       runAbMyHealthConnectorSandbox(),
     );
     if (result) setAbConnectResult(result);
+  }
+
+  async function onBcConnect() {
+    const result = await withBusy('bcConnect', () =>
+      runBcHealthGatewayConnectorSandbox(),
+    );
+    if (result) setBcConnectResult(result);
   }
 
   return (
@@ -349,6 +361,29 @@ export default function SandboxHomeScreen() {
             {abConnectResult.smartAvailable ? 'available' : 'not public'}
           </Text>
           <Link href={abConnectResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open portal sync →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="3d. BC / Health Gateway connector"
+        subtitle="Sample FHIR sync + playbook (FILE_IMPORT; SMART not public)"
+        busy={busy === 'bcConnect'}
+        disabled={busy !== null}
+        onPress={onBcConnect}
+      />
+      {bcConnectResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>BC connector result</Text>
+          <Text style={styles.meta}>
+            Imported {bcConnectResult.importedCount} · {bcConnectResult.jurisdiction}{' '}
+            · playbook {bcConnectResult.playbookSteps} · SMART{' '}
+            {bcConnectResult.smartAvailable ? 'available' : 'not public'}
+          </Text>
+          <Link href={bcConnectResult.deepLink} asChild>
             <Pressable>
               <Text style={styles.link}>Open portal sync →</Text>
             </Pressable>
