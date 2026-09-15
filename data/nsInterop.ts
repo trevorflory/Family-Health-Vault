@@ -22,15 +22,21 @@ export const NS_YOURHEALTH_EXPORT_PLAYBOOK = [
   },
   {
     id: 'records',
-    title: 'Open Records → lab results',
+    title: 'Open Records → lab results (or Patient Summary)',
     detail:
-      'Blood, urine, and general lab results from January 2023 onward appear ~24 hours after validation. Diagnostic imaging, immunizations, and meds may also be listed.',
+      'Blood, urine, and general lab results from January 2023 onward appear ~24 hours after validation. Patient Summary aggregates allergies, imaging, immunizations, labs, and meds for share/print.',
+  },
+  {
+    id: 'patient-summary',
+    title: 'Share or print Patient Summary',
+    detail:
+      'From the Patient Summary tile, view/share for 24h or print/paste into the vault. `importNsPatientSummaryText` extracts laboratory lines; confirm PENDING_REVIEW before digests/SBAR.',
   },
   {
     id: 'import-vault',
     title: 'Import into Family Health Vault',
     detail:
-      'Use Patient Summary share/print or OCR/paste of lab screens, or import FHIR JSON if a partner/sandbox export is available. Confirm PENDING_REVIEW events before digests/SBAR.',
+      'Use Patient Summary paste, Records OCR, or FHIR JSON for partner/sandbox exports.',
   },
   {
     id: 'foi-fallback',

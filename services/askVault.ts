@@ -1,14 +1,17 @@
 /**
  * SaMD-safe “ask my vault” context builder + local LLM call.
  * Confirmed / pending-review events only; citations back to MedicalEvent ids.
+ * Optional proxy gate: READ_VAULT check + append-only access log.
  */
 
 import type { MedicalEventRecord, OcrParsedPayload, VisitDebriefParsed } from '../types/db';
+import type { AccessLogEntry, ProxyGrant } from '../types/proxyAccess';
 import {
   queryLocalLLM,
   type LocalAIClientConfig,
   type LocalLLMResponse,
 } from './localAIClient';
+import { checkPermission, appendAccessLog } from './proxyAccessEngine';
 
 export interface AskVaultCitation {
   eventId: string;
@@ -21,6 +24,8 @@ export interface AskVaultResult {
   answer: LocalLLMResponse;
   citations: AskVaultCitation[];
   contextUsed: string;
+  accessLog?: AccessLogEntry;
+  grant?: ProxyGrant | null;
 }
 
 function clip(text: string, max: number): string {
@@ -87,11 +92,50 @@ export async function askMyVault(options: {
   question: string;
   events: MedicalEventRecord[];
   config?: LocalAIClientConfig;
+  /** When set, requires an active READ_VAULT grant and appends an access log. */
+  proxy?: {
+    actorId: string;
+    patientId: string;
+    now?: Date;
+  };
 }): Promise<AskVaultResult> {
+  let accessLog: AccessLogEntry | undefined;
+  let grant: ProxyGrant | null | undefined;
+
+  if (options.proxy) {
+    const check = await checkPermission(
+      options.proxy.actorId,
+      options.proxy.patientId,
+      'READ_VAULT',
+      options.proxy.now ?? new Date(),
+    );
+    accessLog = check.log;
+    grant = check.grant;
+    if (!check.permitted) {
+      throw new Error(
+        'Ask my vault denied — no active READ_VAULT proxy grant for this actor.',
+      );
+    }
+  }
+
   const { context, citations } = buildAskVaultContext(options.events);
   const answer = await queryLocalLLM(options.question, context, {
     allowOfflineFallback: true,
     ...options.config,
   });
-  return { answer, citations, contextUsed: context };
+
+  if (options.proxy && grant) {
+    accessLog = await appendAccessLog({
+      grantId: grant.grantId,
+      patientId: options.proxy.patientId,
+      actorId: options.proxy.actorId,
+      actorDisplayName: grant.granteeDisplayName,
+      action: 'ASK_MY_VAULT',
+      permitted: true,
+      detail: `citations=${citations.length}`,
+      now: options.proxy.now,
+    });
+  }
+
+  return { answer, citations, contextUsed: context, accessLog, grant };
 }

@@ -18,8 +18,17 @@ import {
   importPortalLabTextForAuthority,
   type HealthAuthorityConnector,
 } from './connector';
+import {
+  NS_SAMPLE_PATIENT_SUMMARY_TEXT,
+  parseNsPatientSummaryText,
+} from './nsPatientSummary';
+import { saveMedicalEvent } from '../../db/medicalEvents';
+import {
+  inferMedicalEventKind,
+  parseOcrDocument,
+} from '../ocrTextParsers';
 
-export { NS_NSHA_AUTHORITY_ID };
+export { NS_NSHA_AUTHORITY_ID, NS_SAMPLE_PATIENT_SUMMARY_TEXT };
 
 export const NS_SAMPLE_FHIR_RESOURCES: FhirImportResource[] = [
   {
@@ -150,6 +159,46 @@ export async function importNsYourHealthLabText(options: {
     status: options.status,
     eventId: options.eventId,
   });
+}
+
+/** Import YourHealthNS Patient Summary share/print text. */
+export async function importNsPatientSummaryText(options: {
+  patientId: string;
+  rawText: string;
+  sourceUri?: string | null;
+  status?: MedicalEventRecord['status'];
+  eventId?: string;
+}) {
+  const summary = parseNsPatientSummaryText(options.rawText);
+  if (!summary.labs.length) {
+    throw new Error(
+      summary.notes.find((n) => /no lab/i.test(n)) ??
+        'No labs found in Patient Summary text',
+    );
+  }
+  const chrome = `YourHealthNS Portal Screenshot / Patient Summary\n${options.rawText.trim()}`;
+  const parsed = parseOcrDocument(chrome);
+  parsed.labs = summary.labs;
+  parsed.sourceAuthorityId = NS_NSHA_AUTHORITY_ID;
+  parsed.portalLabel = NS_YOURHEALTH_PORTAL.label;
+  parsed.parserNotes = [
+    'Imported via YourHealthNS Patient Summary path — confirm values before CONFIRMED.',
+    ...summary.notes,
+    ...parsed.parserNotes,
+  ];
+  const record = await saveMedicalEvent({
+    id: options.eventId,
+    patientId: options.patientId,
+    kind: inferMedicalEventKind(parsed),
+    sourceUri: options.sourceUri ?? null,
+    rawText: chrome,
+    parsed,
+    status: options.status ?? 'PENDING_REVIEW',
+    sourceType: 'FILE_IMPORT',
+    sourceAuthorityId: NS_NSHA_AUTHORITY_ID,
+    lastSyncedAt: new Date().toISOString(),
+  });
+  return { record, parsed, summary };
 }
 
 export async function syncNsSampleToVault(options: {

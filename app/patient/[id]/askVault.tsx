@@ -11,8 +11,10 @@ import {
   View,
 } from 'react-native';
 import { listMedicalEventsForPatient } from '../../../db/medicalEvents';
+import { DEMO_CAREGIVER_ID } from '../../../data/caregiverHousehold';
 import { askMyVault, type AskVaultCitation } from '../../../services/askVault';
 import { SBAR_REGULATORY_NOTICE } from '../../../services/sbarEngine';
+import { getVaultCryptoStatus } from '../../../services/vaultCrypto';
 
 export default function AskVaultScreen() {
   const { id: patientId } = useLocalSearchParams<{ id: string }>();
@@ -23,6 +25,7 @@ export default function AskVaultScreen() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [citations, setCitations] = useState<AskVaultCitation[]>([]);
   const [source, setSource] = useState<string | null>(null);
+  const vaultCrypto = getVaultCryptoStatus();
 
   async function onAsk() {
     if (!patientId || !question.trim()) return;
@@ -32,6 +35,10 @@ export default function AskVaultScreen() {
       const result = await askMyVault({
         question: question.trim(),
         events,
+        proxy: {
+          actorId: DEMO_CAREGIVER_ID,
+          patientId,
+        },
       });
       setAnswer(result.answer.text);
       setCitations(result.citations);
@@ -50,9 +57,13 @@ export default function AskVaultScreen() {
       <Text style={styles.heading}>Ask my vault</Text>
       <Text style={styles.lede}>
         Natural-language questions over confirmed vault events. Local Ollama when
-        available; offline SaMD-safe fallback otherwise. Not a diagnosis.
+        available; offline SaMD-safe fallback otherwise. Not a diagnosis. Requires
+        an active READ_VAULT proxy grant (logged append-only).
       </Text>
       <Text style={styles.notice}>{SBAR_REGULATORY_NOTICE}</Text>
+      {!vaultCrypto.configured ? (
+        <Text style={styles.notice}>{vaultCrypto.message}</Text>
+      ) : null}
 
       <TextInput
         style={styles.input}

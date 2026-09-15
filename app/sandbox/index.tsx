@@ -35,6 +35,7 @@ import {
   runMbEchartConnectorSandbox,
   runNsYourHealthConnectorSandbox,
   runRemainingCanadaConnectorsSandbox,
+  runDigitalFrontDoorDogfood,
   runWeeklyDigestSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
@@ -47,6 +48,7 @@ import {
   type MbConnectorSandboxResult,
   type NsConnectorSandboxResult,
   type RemainingCanadaSandboxResult,
+  type DigitalFrontDoorDogfoodResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
 } from '../../utils/sandboxFlows';
@@ -70,6 +72,7 @@ type BusyKey =
   | 'mbConnect'
   | 'nsConnect'
   | 'remainingCa'
+  | 'dogfood'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -111,6 +114,8 @@ export default function SandboxHomeScreen() {
     useState<NsConnectorSandboxResult | null>(null);
   const [remainingCaResult, setRemainingCaResult] =
     useState<RemainingCanadaSandboxResult | null>(null);
+  const [dogfoodResult, setDogfoodResult] =
+    useState<DigitalFrontDoorDogfoodResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -261,6 +266,13 @@ export default function SandboxHomeScreen() {
       runRemainingCanadaConnectorsSandbox(),
     );
     if (result) setRemainingCaResult(result);
+  }
+
+  async function onDogfood() {
+    const result = await withBusy('dogfood', () =>
+      runDigitalFrontDoorDogfood(),
+    );
+    if (result) setDogfoodResult(result);
   }
 
   return (
@@ -563,6 +575,26 @@ export default function SandboxHomeScreen() {
               <Text style={styles.link}>Open portal sync →</Text>
             </Pressable>
           </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="3j. Dogfood digital front door (BC+NS)"
+        subtitle="CSV + Patient Summary → digest → SBAR → 811 → FOI → proxy ask-vault"
+        busy={busy === 'dogfood'}
+        disabled={busy !== null}
+        onPress={onDogfood}
+      />
+      {dogfoodResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Dogfood result</Text>
+          <Text style={styles.meta}>
+            BC {dogfoodResult.bcImported} · NS {dogfoodResult.nsImported} · 811
+            cues {dogfoodResult.script811Cues} · ask deny/allow{' '}
+            {dogfoodResult.askDeniedWithoutGrant ? 'deny' : '?'} /
+            {dogfoodResult.askPermittedWithGrant ? 'allow' : '?'}
+          </Text>
+          <Text style={styles.meta}>{dogfoodResult.digestHeadline}</Text>
         </View>
       ) : null}
 
