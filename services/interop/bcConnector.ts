@@ -18,8 +18,17 @@ import {
   importPortalLabTextForAuthority,
   type HealthAuthorityConnector,
 } from './connector';
+import {
+  BC_SAMPLE_HEALTH_GATEWAY_CSV,
+  parseBcHealthGatewayCsv,
+} from './bcCsv';
+import { saveMedicalEvent } from '../../db/medicalEvents';
+import {
+  inferMedicalEventKind,
+  parseOcrDocument,
+} from '../ocrTextParsers';
 
-export { BC_HEALTH_GATEWAY_AUTHORITY_ID };
+export { BC_HEALTH_GATEWAY_AUTHORITY_ID, BC_SAMPLE_HEALTH_GATEWAY_CSV };
 
 export const BC_SAMPLE_FHIR_RESOURCES: FhirImportResource[] = [
   {
@@ -157,6 +166,45 @@ export async function importBcHealthGatewayLabText(options: {
     status: options.status,
     eventId: options.eventId,
   });
+}
+
+/** Import Health Gateway Download-records CSV/XLSX text (CSV only). */
+export async function importBcHealthGatewayCsv(options: {
+  patientId: string;
+  csvText: string;
+  sourceUri?: string | null;
+  status?: MedicalEventRecord['status'];
+  eventId?: string;
+}) {
+  const parsedCsv = parseBcHealthGatewayCsv(options.csvText);
+  if (!parsedCsv.labs.length) {
+    throw new Error(
+      parsedCsv.notes[0] ?? 'No labs found in Health Gateway CSV export',
+    );
+  }
+  const chrome = `BC Health Gateway Portal Screenshot / Download records CSV\n${options.csvText.trim()}`;
+  const parsed = parseOcrDocument(chrome);
+  parsed.labs = parsedCsv.labs;
+  parsed.sourceAuthorityId = BC_HEALTH_GATEWAY_AUTHORITY_ID;
+  parsed.portalLabel = BC_HEALTH_GATEWAY_PORTAL.label;
+  parsed.parserNotes = [
+    'Imported via BC Health Gateway CSV path — confirm values before CONFIRMED.',
+    ...parsedCsv.notes,
+    ...parsed.parserNotes,
+  ];
+  const record = await saveMedicalEvent({
+    id: options.eventId,
+    patientId: options.patientId,
+    kind: inferMedicalEventKind(parsed),
+    sourceUri: options.sourceUri ?? null,
+    rawText: chrome,
+    parsed,
+    status: options.status ?? 'PENDING_REVIEW',
+    sourceType: 'FILE_IMPORT',
+    sourceAuthorityId: BC_HEALTH_GATEWAY_AUTHORITY_ID,
+    lastSyncedAt: new Date().toISOString(),
+  });
+  return { record, parsed, csv: parsedCsv };
 }
 
 export async function syncBcSampleToVault(options: {

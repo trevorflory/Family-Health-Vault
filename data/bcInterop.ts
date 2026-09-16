@@ -31,15 +31,15 @@ export const BC_HEALTH_GATEWAY_EXPORT_PLAYBOOK = [
   },
   {
     id: 'format',
-    title: 'Download as PDF (or CSV/XLSX)',
+    title: 'Download as PDF or CSV/XLSX',
     detail:
-      'Prefer PDF for OCR into the vault; CSV/XLSX may help caregivers review values offline.',
+      'Prefer PDF for OCR into the vault. CSV/XLSX columns like Test Name, Result, Units, Reference Range, Collection Date import via `importBcHealthGatewayCsv` without OCR.',
   },
   {
     id: 'import-vault',
     title: 'Import into Family Health Vault',
     detail:
-      'OCR/paste lab PDF text, or import a FHIR JSON bundle if a partner/sandbox export is available. Confirm PENDING_REVIEW events before digests/SBAR.',
+      'OCR/paste lab PDF text, import CSV via the Health Gateway CSV path, or import a FHIR JSON bundle for partner/sandbox. Confirm PENDING_REVIEW events before digests/SBAR.',
   },
   {
     id: 'foi-fallback',
