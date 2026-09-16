@@ -21,7 +21,9 @@ export default function PatientScreen() {
 
       <Link href={`/patient/${id}/sbarExport`} asChild>
         <Pressable style={styles.secondaryCta}>
-          <Text style={styles.secondaryCtaText}>Export Visit SBAR</Text>
+          <Text style={styles.secondaryCtaText}>
+            Clinician / ER handover packet (SBAR)
+          </Text>
         </Pressable>
       </Link>
 

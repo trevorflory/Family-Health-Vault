@@ -6,6 +6,7 @@ import type {
   DigestAppointment,
   WeeklyDigestPayload,
 } from '../types/digest';
+import type { DigestShiftHandoverSummary } from '../types/careObservation';
 import type { FOIRequestRecord } from '../types/foiPayload';
 import {
   FOI_OVERDUE_DAYS,
@@ -30,9 +31,14 @@ export interface DigestDataLoaders {
     fromDateKey: string,
     toDateKey: string,
   ) => Promise<Array<{ medicationId: string; dateKey: string }>>;
+  /** Recent aide shift handovers for the morning digest card. */
+  listRecentHandoversForPatient?: (
+    patientId: string,
+    now: Date,
+  ) => Promise<DigestShiftHandoverSummary[]>;
 }
 
-/** Wire digest compilation to local FOI / MedicalEvents / med-dose stores. */
+/** Wire digest compilation to local FOI / MedicalEvents / med-dose / handover stores. */
 export function createLiveDigestLoaders(): DigestDataLoaders {
   // Require inside function so unit tests can compile without SQLite.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -41,6 +47,8 @@ export function createLiveDigestLoaders(): DigestDataLoaders {
   const events = require('../db/medicalEvents') as typeof import('../db/medicalEvents');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const meds = require('../db/medDoses') as typeof import('../db/medDoses');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const handover = require('./shiftHandover') as typeof import('./shiftHandover');
   return {
     listFoiRequestsForPatient: (id) => foi.listFOIRequestsForPatient(id),
     listMedicalEventsForPatient: (id) => events.listMedicalEventsForPatient(id),
@@ -48,6 +56,8 @@ export function createLiveDigestLoaders(): DigestDataLoaders {
       meds.listMedDosesGiven(id, dateKey),
     listMedDosesGivenBetween: (id, from, to) =>
       meds.listMedDosesGivenBetween(id, from, to),
+    listRecentHandoversForPatient: (id, now) =>
+      handover.listRecentHandoverSummaries(id, now),
   };
 }
 
@@ -122,16 +132,21 @@ export async function compileDailyDigest(
   const listFoi = loaders.listFoiRequestsForPatient ?? emptyList;
   const listEvents = loaders.listMedicalEventsForPatient ?? emptyList;
   const listMedMarks = loaders.listMedDosesGivenForDate ?? emptyList;
+  const listHandovers =
+    loaders.listRecentHandoversForPatient ??
+    (async () => [] as DigestShiftHandoverSummary[]);
 
   const sections: DailyDependantSection[] = [];
 
   for (const dep of household.dependants) {
     const patientId = dep.dependant.patientId;
-    const [foiRecords, medicalEvents, givenIds] = await Promise.all([
-      listFoi(patientId),
-      listEvents(patientId),
-      listMedMarks(patientId, todayKey),
-    ]);
+    const [foiRecords, medicalEvents, givenIds, recentHandovers] =
+      await Promise.all([
+        listFoi(patientId),
+        listEvents(patientId),
+        listMedMarks(patientId, todayKey),
+        listHandovers(patientId, now),
+      ]);
     const givenSet = new Set(givenIds);
 
     const medsToday = [...(dep.medsByDate[todayKey] ?? [])].map((m) => ({
@@ -151,6 +166,7 @@ export async function compileDailyDigest(
       medsToday,
       appointmentsWithin72h: appointmentsWithin72Hours(dep.appointments, now),
       overdueTasks,
+      recentHandovers,
     });
   }
 

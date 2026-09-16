@@ -46,13 +46,15 @@ export interface FhirCodeableConcept {
   text?: string;
 }
 
-/** Minimal FHIR R4 Observation subset for vault import. */
+/** Minimal FHIR R4 Observation subset for vault import / care export. */
 export interface FhirObservation {
   resourceType: 'Observation';
   id?: string;
   status?: string;
   code?: FhirCodeableConcept;
   effectiveDateTime?: string;
+  subject?: { reference?: string };
+  performer?: Array<{ display?: string }>;
   valueQuantity?: {
     value?: number;
     unit?: string;
@@ -60,6 +62,15 @@ export interface FhirObservation {
     code?: string;
   };
   valueString?: string;
+  component?: Array<{
+    code?: FhirCodeableConcept;
+    valueQuantity?: {
+      value?: number;
+      unit?: string;
+      system?: string;
+      code?: string;
+    };
+  }>;
   referenceRange?: Array<{
     text?: string;
     low?: { value?: number; unit?: string };
@@ -87,12 +98,38 @@ export interface FhirImmunization {
   occurrenceDateTime?: string;
 }
 
+/** Thin MedicationAdministration stub for med-verify exports. */
+export interface FhirMedicationAdministration {
+  resourceType: 'MedicationAdministration';
+  id?: string;
+  status?: string;
+  medicationCodeableConcept?: FhirCodeableConcept;
+  effectiveDateTime?: string;
+  subject?: { reference?: string };
+  note?: Array<{ text?: string }>;
+}
+
+/** Thin DocumentReference stub for care-home log provenance. */
+export interface FhirDocumentReference {
+  resourceType: 'DocumentReference';
+  id?: string;
+  status?: string;
+  type?: FhirCodeableConcept;
+  subject?: { reference?: string };
+  date?: string;
+  description?: string;
+}
+
 export type FhirImportResource =
   | FhirObservation
   | FhirMedicationRequest
-  | FhirImmunization;
+  | FhirImmunization
+  | FhirMedicationAdministration
+  | FhirDocumentReference;
 
 export interface FhirBundle {
   resourceType?: 'Bundle';
+  type?: string;
+  timestamp?: string;
   entry?: Array<{ resource?: FhirImportResource }>;
 }

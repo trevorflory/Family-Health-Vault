@@ -1,4 +1,4 @@
-import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,6 +16,7 @@ import {
   DEMO_SIBLING_NAME,
 } from '../../../data/proxyGrants';
 import { getPatientVaultProfile } from '../../../data/patientVault';
+import { issueDelegateGrant } from '../../../services/delegateAccess';
 import {
   checkPermission,
   evaluateAgeOut,
@@ -35,6 +36,7 @@ import type {
 
 export default function ProxyAccessScreen() {
   const { id: patientId } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const profile = getPatientVaultProfile(patientId ?? '');
 
   const [grants, setGrants] = useState<ProxyGrant[]>([]);
@@ -151,6 +153,34 @@ export default function ProxyAccessScreen() {
     );
   }
 
+  async function onIssueAideLink() {
+    if (!patientId) return;
+    try {
+      const grant = await issueDelegateGrant({
+        patientId,
+        recipientName: 'Night Aide (demo)',
+        grantedScopes: ['LOG_HANDOVER', 'LOG_VITALS', 'LOG_MEALS'],
+        issuedBy: DEMO_CAREGIVER_ID,
+      });
+      Alert.alert(
+        'Aide link issued',
+        `Scoped handover access for ${grant.recipientName}. Dogfood only — not a production magic link.`,
+        [
+          {
+            text: 'Open aide gate',
+            onPress: () => router.push(`/delegate/${grant.tokenId}`),
+          },
+          { text: 'OK' },
+        ],
+      );
+    } catch (err) {
+      Alert.alert(
+        'Could not issue aide link',
+        err instanceof Error ? err.message : 'Unknown error',
+      );
+    }
+  }
+
   if (busy && grants.length === 0) {
     return (
       <View style={styles.centered}>
@@ -216,6 +246,9 @@ export default function ProxyAccessScreen() {
           onPress={() => onCheck('MANAGE_PROXIES')}
         >
           <Text style={styles.secondaryBtnText}>Check: Manage Proxies</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryBtn} onPress={onIssueAideLink}>
+          <Text style={styles.secondaryBtnText}>Issue aide Shift Handover link</Text>
         </Pressable>
         <Link href={`/patient/${patientId}/emergencyPass`} asChild>
           <Pressable style={styles.emergencyBtn}>

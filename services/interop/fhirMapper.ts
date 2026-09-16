@@ -211,6 +211,14 @@ export function mapFhirResourcesToSaveInputs(
       else notes.push('Skipped MedicationRequest without medication name');
     } else if (resource.resourceType === 'Immunization') {
       notes.push(mapFhirImmunizationToRawNote(resource, options.authorityId));
+    } else if (resource.resourceType === 'MedicationAdministration') {
+      notes.push(
+        `Skipped MedicationAdministration ${resource.id ?? ''} (care export; not lab import)`,
+      );
+    } else if (resource.resourceType === 'DocumentReference') {
+      notes.push(
+        `Skipped DocumentReference ${resource.id ?? ''} (care provenance; not lab import)`,
+      );
     }
   }
 

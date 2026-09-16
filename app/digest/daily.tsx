@@ -11,11 +11,13 @@ import {
 } from 'react-native';
 import { DEMO_CAREGIVER_ID } from '../../data/caregiverHousehold';
 import { markMedDosesGiven } from '../../db/medDoses';
+import { compileCareImpactSummary } from '../../services/careImpact';
 import {
   compileDailyDigest,
   createLiveDigestLoaders,
 } from '../../services/digestEngine';
 import { scheduleDigestNotifications } from '../../services/notificationScheduler';
+import type { CareImpactSummary } from '../../types/careObservation';
 import type { DailyDigestPayload, DailyDependantSection } from '../../types/digest';
 
 function localDateKey(d: Date = new Date()): string {
@@ -80,6 +82,7 @@ export default function DailyDigestScreen() {
   const caregiverId = params.caregiverId || DEMO_CAREGIVER_ID;
 
   const [digest, setDigest] = useState<DailyDigestPayload | null>(null);
+  const [impact, setImpact] = useState<CareImpactSummary | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,12 +90,12 @@ export default function DailyDigestScreen() {
     try {
       setBusy(true);
       setError(null);
-      const payload = await compileDailyDigest(
-        caregiverId,
-        new Date(),
-        createLiveDigestLoaders(),
-      );
+      const [payload, impactSummary] = await Promise.all([
+        compileDailyDigest(caregiverId, new Date(), createLiveDigestLoaders()),
+        compileCareImpactSummary({ caregiverId }),
+      ]);
       setDigest(payload);
+      setImpact(impactSummary);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to compile digest');
     } finally {
@@ -172,6 +175,18 @@ export default function DailyDigestScreen() {
       <Text style={styles.heading}>Daily Morning Digest</Text>
       <Text style={styles.lede}>{digest.headline}</Text>
 
+      {impact && impact.counts.length > 0 ? (
+        <View style={styles.card}>
+          <Text style={styles.sectionLabel}>Care coordination this year</Text>
+          <Text style={styles.meta}>{impact.headline}</Text>
+          {impact.counts.map((c) => (
+            <Text key={c.type} style={styles.line}>
+              {c.copy}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.summaryRow}>
         <Text style={styles.summaryChip}>{digest.totalMedsDue} meds</Text>
         <Text style={styles.summaryChip}>{digest.totalAppointments} visits</Text>
@@ -230,6 +245,25 @@ export default function DailyDigestScreen() {
               </Text>
             ))
           )}
+
+          {(section.recentHandovers?.length ?? 0) > 0 ? (
+            <>
+              <Text style={styles.sectionLabel}>Last shift handover</Text>
+              {section.recentHandovers!.map((h) => (
+                <View key={h.handoverId} style={styles.apptBlock}>
+                  <Text style={styles.line}>
+                    {h.performerLabel} · meds{' '}
+                    {h.medsVerified ? 'verified' : 'not verified'}
+                  </Text>
+                  <Text style={styles.meta}>{h.intakeSummary}</Text>
+                  <Text style={styles.meta}>{h.moodBehaviorSummary}</Text>
+                  {h.tellTheFamily ? (
+                    <Text style={styles.alert}>Family: {h.tellTheFamily}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </>
+          ) : null}
 
           <QuickActions section={section} onMarkMeds={markMedsGiven} />
         </View>
