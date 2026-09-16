@@ -565,3 +565,111 @@ export async function runRemainingCanadaConnectorsSandbox(options?: {
     deepLink: `/patient/${patientId}/portalSync`,
   };
 }
+
+export interface DigitalFrontDoorDogfoodResult {
+  bcImported: number;
+  nsImported: number;
+  digestHeadline: string;
+  sbarHasLabs: boolean;
+  script811Cues: number;
+  foiUri: string;
+  askDeniedWithoutGrant: boolean;
+  askPermittedWithGrant: boolean;
+  vaultCryptoUsingDemoKey: boolean;
+}
+
+/**
+ * Dogfood: BC + NS pilot imports → digest → SBAR → 811 → FOI → proxy-gated ask-vault.
+ * Exercises real services (no fake stubs) on Dad.
+ */
+export async function runDigitalFrontDoorDogfood(options?: {
+  patientId?: string;
+  now?: Date;
+}): Promise<DigitalFrontDoorDogfoodResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const now = options?.now ?? new Date('2026-09-15T12:00:00.000Z');
+
+  const { importBcHealthGatewayCsv } = await import(
+    '../services/interop/bcConnector'
+  );
+  const { importNsPatientSummaryText } = await import(
+    '../services/interop/nsConnector'
+  );
+  const { BC_SAMPLE_HEALTH_GATEWAY_CSV } = await import(
+    '../services/interop/bcCsv'
+  );
+  const { NS_SAMPLE_PATIENT_SUMMARY_TEXT } = await import(
+    '../services/interop/nsPatientSummary'
+  );
+  const { askMyVault } = await import('../services/askVault');
+  const { getVaultCryptoStatus } = await import('../services/vaultCrypto');
+  const { resetProxyAccessStore } = await import(
+    '../services/proxyAccessEngine'
+  );
+  const { listMedicalEventsForPatient } = await import('../db/medicalEvents');
+
+  const bc = await syncBcSampleToVault({ patientId, now });
+  await importBcHealthGatewayCsv({
+    patientId,
+    csvText: BC_SAMPLE_HEALTH_GATEWAY_CSV,
+  });
+  const ns = await syncNsSampleToVault({
+    patientId,
+    now: new Date(now.getTime() + 1000),
+  });
+  await importNsPatientSummaryText({
+    patientId,
+    rawText: NS_SAMPLE_PATIENT_SUMMARY_TEXT,
+  });
+
+  const digest = await runDailyDigestSandbox(DEMO_CAREGIVER_ID, now);
+  const events = await listMedicalEventsForPatient(patientId);
+  const sbar = await runDadSbarSandbox({ now, medicalEvents: events });
+  const script = await run811ScriptSandbox();
+  const foi = await runSkHipaFoiSandbox();
+
+  await resetProxyAccessStore(now);
+  let askDeniedWithoutGrant = false;
+  try {
+    await askMyVault({
+      question: 'Summarize kidney labs on file.',
+      events,
+      proxy: {
+        actorId: 'cg-unknown-actor',
+        patientId,
+        now,
+      },
+    });
+  } catch {
+    askDeniedWithoutGrant = true;
+  }
+
+  const permitted = await askMyVault({
+    question: 'Summarize kidney labs on file.',
+    events,
+    proxy: {
+      actorId: DEMO_CAREGIVER_ID,
+      patientId,
+      now,
+    },
+  });
+
+  const crypto = getVaultCryptoStatus();
+
+  return {
+    bcImported: bc.result.importedCount,
+    nsImported: ns.result.importedCount,
+    digestHeadline: digest.headline,
+    sbarHasLabs: Boolean(
+      sbar.document.sections.background?.toLowerCase().includes('egfr') ||
+        sbar.document.sourceEventSummaries?.some((s) =>
+          /egfr|lab|portal|csv|patient summary/i.test(s),
+        ),
+    ),
+    script811Cues: script.dispatcherCueSheet.length,
+    foiUri: foi.uri,
+    askDeniedWithoutGrant,
+    askPermittedWithGrant: Boolean(permitted.accessLog?.permitted),
+    vaultCryptoUsingDemoKey: crypto.usingDemoKey,
+  };
+}
