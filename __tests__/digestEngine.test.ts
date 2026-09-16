@@ -63,6 +63,8 @@ describe('digestEngine', () => {
     expect(digest.sections.map((s) => s.dependant.role).sort()).toEqual(
       ['aging_parent', 'child', 'self'].sort(),
     );
+    expect(digest.sections[0].dependant.role).toBe('self');
+    expect(digest.sections[0].dependant.nickname).toBe('Myself');
   });
 
   it('extracts meds scheduled for today across the household', async () => {
@@ -79,12 +81,16 @@ describe('digestEngine', () => {
     const digest = await compileDailyDigest(DEMO_CAREGIVER_ID, NOW);
     const dad = digest.sections.find((s) => s.dependant.patientId === 'pt-7801')!;
     expect(dad.appointmentsWithin72h.length).toBeGreaterThan(0);
-    expect(dad.appointmentsWithin72h[0].preparationAlert).toMatch(
-      /Print SBAR note for Dad's visit/i,
-    );
+    expect(
+      dad.appointmentsWithin72h.some((a) =>
+        /Print SBAR note for Dad's visit/i.test(a.preparationAlert),
+      ),
+    ).toBe(true);
 
     const leo = digest.sections.find((s) => s.dependant.patientId === 'pt-leo-04')!;
-    expect(leo.appointmentsWithin72h[0]?.preparationAlert).toMatch(/Leo/i);
+    expect(
+      leo.appointmentsWithin72h.some((a) => /Leo/i.test(a.preparationAlert)),
+    ).toBe(true);
   });
 
   it('surfaces fixture FOI pending >30 days and missing lab uploads when vault empty', async () => {
@@ -154,6 +160,15 @@ describe('digestEngine', () => {
     const dad = weekly.adherence.find((a) => a.patientId === 'pt-7801')!;
     expect(dad.dosesTaken).toBe(21);
     expect(dad.adherenceRate).toBe(1);
+  });
+
+  it('includes rolling next-7-day window and caregiver to-dos', async () => {
+    const weekly = await compileWeeklyDigest(DEMO_CAREGIVER_ID, NOW);
+    expect(weekly.windowStart).toBe('2026-09-14');
+    expect(weekly.windowEnd).toBe('2026-09-20');
+    expect(weekly.caregiverTodos.length).toBeGreaterThanOrEqual(3);
+    expect(weekly.caregiverTodos.some((t) => /Dad/i.test(t.label))).toBe(true);
+    expect(weekly.headline).toMatch(/next 7 days/i);
   });
 
   it('rejects unknown caregivers', async () => {

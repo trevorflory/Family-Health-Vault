@@ -42,6 +42,8 @@ export const PATIENT_VAULT: Record<string, PatientVaultProfile> = {
     ageYears: 78,
     sex: 'male',
     relationshipLabel: 'father',
+    heightCm: 175,
+    weightKg: 82,
     chronicConditions: ['Type 2 Diabetes', 'Stage 3 CKD', 'Mild cognitive impairment'],
     activeMedications: [
       { name: 'Metformin', dose: '500mg', frequency: 'twice daily' },
@@ -62,6 +64,8 @@ export const PATIENT_VAULT: Record<string, PatientVaultProfile> = {
     ageYears: 4,
     sex: 'male',
     relationshipLabel: 'son',
+    heightCm: 102,
+    weightKg: 16.9,
     chronicConditions: [],
     activeMedications: [
       { name: "Children's multivitamin", dose: '1 chewable', frequency: 'daily' },
@@ -90,11 +94,15 @@ export const PATIENT_VAULT: Record<string, PatientVaultProfile> = {
   'pt-self-01': {
     patientId: 'pt-self-01',
     fullName: 'Alex Ellis',
+    preferredName: 'Alex',
     ageYears: 42,
-    sex: 'unspecified',
+    sex: 'female',
     relationshipLabel: 'self',
-    chronicConditions: ['Caregiver back strain'],
+    heightCm: 165,
+    weightKg: 60,
+    chronicConditions: ['Type 2 Diabetes', 'Caregiver back strain'],
     activeMedications: [
+      { name: 'Metformin', dose: '500mg', frequency: 'twice daily' },
       { name: 'Vitamin D', dose: '1000 IU', frequency: 'daily' },
     ],
     recentEvents: ['Missing fasting lipid panel upload (self-care backlog)'],

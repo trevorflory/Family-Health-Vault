@@ -35,7 +35,9 @@ export default function WeeklyDigestScreen() {
         ),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to compile weekly digest');
+      setError(
+        err instanceof Error ? err.message : 'Failed to compile weekly digest',
+      );
     } finally {
       setBusy(false);
     }
@@ -49,7 +51,7 @@ export default function WeeklyDigestScreen() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color="#0f3d3e" />
-        <Text style={styles.meta}>Compiling Sunday overview…</Text>
+        <Text style={styles.meta}>Compiling next 7 days…</Text>
       </View>
     );
   }
@@ -57,7 +59,7 @@ export default function WeeklyDigestScreen() {
   if (error || !digest) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.heading}>Weekly Sunday Overview</Text>
+        <Text style={styles.heading}>Weekly Overview</Text>
         <Text style={styles.meta}>{error ?? 'No digest available'}</Text>
         <Pressable style={styles.primaryBtn} onPress={load}>
           <Text style={styles.primaryBtnText}>Retry</Text>
@@ -68,10 +70,47 @@ export default function WeeklyDigestScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.kicker}>Week of {digest.weekOf}</Text>
-      <Text style={styles.heading}>Weekly Sunday Overview</Text>
+      <Text style={styles.kicker}>
+        Rolling window · {digest.windowStart} → {digest.windowEnd}
+      </Text>
+      <Text style={styles.heading}>Weekly Overview</Text>
       <Text style={styles.lede}>{digest.headline}</Text>
       <Text style={styles.narrative}>{digest.narrativeSummary}</Text>
+      <Text style={styles.note}>
+        Sunday delivery target (push / email later). Home “My Week” mirrors these
+        to-dos and events.
+      </Text>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Caregiver to-dos</Text>
+        {digest.caregiverTodos.length === 0 ? (
+          <Text style={styles.meta}>No open to-dos</Text>
+        ) : (
+          digest.caregiverTodos.map((t) => (
+            <Text key={t.todoId} style={styles.line}>
+              ○ {t.label}
+              {t.dueDateKey ? ` · due ${t.dueDateKey}` : ''}
+            </Text>
+          ))
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Next 7 days</Text>
+        {digest.upcomingWeek.length === 0 ? (
+          <Text style={styles.meta}>No events in this window</Text>
+        ) : (
+          digest.upcomingWeek.map((item) => (
+            <Text
+              key={`${item.patientId}-${item.startsAt}-${item.title}`}
+              style={styles.line}
+            >
+              {new Date(item.startsAt).toLocaleString('en-CA')} ·{' '}
+              {item.displayName} — {item.title}
+            </Text>
+          ))
+        )}
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>7-day vital trends</Text>
@@ -92,19 +131,14 @@ export default function WeeklyDigestScreen() {
         ))}
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Upcoming week schedule</Text>
-        {digest.upcomingWeek.map((item) => (
-          <Text key={`${item.patientId}-${item.startsAt}-${item.title}`} style={styles.line}>
-            {new Date(item.startsAt).toLocaleString('en-CA')} · {item.displayName} —{' '}
-            {item.title}
-          </Text>
-        ))}
-      </View>
-
+      <Link href="/" asChild>
+        <Pressable style={styles.linkBtn}>
+          <Text style={styles.linkBtnText}>← Back to home</Text>
+        </Pressable>
+      </Link>
       <Link href="/digest/daily" asChild>
         <Pressable style={styles.linkBtn}>
-          <Text style={styles.linkBtnText}>← Back to Daily Morning Digest</Text>
+          <Text style={styles.linkBtnText}>← Daily Morning Status</Text>
         </Pressable>
       </Link>
     </ScrollView>
@@ -129,6 +163,7 @@ const styles = StyleSheet.create({
   heading: { fontSize: 24, fontWeight: '700', color: '#0f3d3e' },
   lede: { fontSize: 15, color: '#355556', lineHeight: 21 },
   narrative: { fontSize: 14, color: '#355556', lineHeight: 20 },
+  note: { fontSize: 12, color: '#5a7374', lineHeight: 18 },
   meta: { fontSize: 13, color: '#5a7374' },
   card: {
     backgroundColor: '#fff',
@@ -138,7 +173,12 @@ const styles = StyleSheet.create({
     borderColor: '#d5e2e2',
     gap: 6,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#143536', marginBottom: 4 },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#143536',
+    marginBottom: 4,
+  },
   line: { fontSize: 14, color: '#143536', lineHeight: 20 },
   primaryBtn: {
     backgroundColor: '#0f3d3e',

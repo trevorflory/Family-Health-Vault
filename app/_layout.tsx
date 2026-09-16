@@ -16,10 +16,10 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: '#f4f7f5' },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'Healthcare App' }} />
+        <Stack.Screen name="index" options={{ title: 'Family Health Vault' }} />
         <Stack.Screen
           name="patient/[id]/index"
-          options={{ title: 'Patient' }}
+          options={{ title: 'Care hub' }}
         />
         <Stack.Screen
           name="patient/[id]/foiWizard"
@@ -71,11 +71,11 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="digest/daily"
-          options={{ title: 'Daily Morning Digest' }}
+          options={{ title: 'Daily Morning Status' }}
         />
         <Stack.Screen
           name="digest/weekly"
-          options={{ title: 'Weekly Sunday Overview' }}
+          options={{ title: 'Weekly Overview' }}
         />
         <Stack.Screen
           name="delegate/[token]"

@@ -24,6 +24,9 @@ export interface PatientVaultProfile {
   ageYears: number;
   sex: BiologicalSex;
   relationshipLabel: string; // e.g. "father", "mother", "spouse", "child"
+  /** Optional anthropometrics for caregiver story tiles (not clinical vitals). */
+  heightCm?: number;
+  weightKg?: number;
   chronicConditions: string[];
   /** Active medications; entries may omit dose/frequency. */
   activeMedications: Array<MedicationRecord | null | undefined>;

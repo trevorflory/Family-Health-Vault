@@ -10,6 +10,8 @@ export type DependantRole = 'aging_parent' | 'child' | 'self';
 export interface DigestDependantRef {
   patientId: string;
   displayName: string; // e.g. "Dad (78) - Saskatoon"
+  /** Caregiver-facing short label: Dad, Leo, Myself */
+  nickname: string;
   role: DependantRole;
   ageYears: number;
   city: string;
@@ -83,14 +85,28 @@ export interface WeeklyScheduleItem {
   startsAt: string;
 }
 
+/** Caregiver action items (book visits, refills) — not clinical tasks. */
+export interface CaregiverTodo {
+  todoId: string;
+  label: string;
+  patientId?: string;
+  /** YYYY-MM-DD when known */
+  dueDateKey?: string;
+}
+
 export interface WeeklyDigestPayload {
   caregiverId: string;
   compiledAt: string;
   weekOf: string; // YYYY-MM-DD (Monday)
+  /** Inclusive start of the rolling next-7-days window (today). */
+  windowStart: string;
+  /** Inclusive end of the rolling next-7-days window. */
+  windowEnd: string;
   headline: string;
   vitalTrends: VitalTrendPoint[];
   adherence: MedicationAdherenceSummary[];
   upcomingWeek: WeeklyScheduleItem[];
+  caregiverTodos: CaregiverTodo[];
   narrativeSummary: string;
 }
 

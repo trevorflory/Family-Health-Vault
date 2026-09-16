@@ -170,6 +170,12 @@ export async function compileDailyDigest(
     });
   }
 
+  sections.sort((a, b) => {
+    const rank = (role: string) =>
+      role === 'self' ? 0 : role === 'aging_parent' ? 1 : 2;
+    return rank(a.dependant.role) - rank(b.dependant.role);
+  });
+
   const totalMedsDue = sections.reduce((n, s) => n + s.medsToday.length, 0);
   const totalAppointments = sections.reduce(
     (n, s) => n + s.appointmentsWithin72h.length,
@@ -204,6 +210,7 @@ export async function compileWeeklyDigest(
 
   const todayKey = dateKey(now);
   const fromKey = dateKeyOffset(todayKey, -6);
+  const windowEnd = dateKeyOffset(todayKey, 6);
   const listBetween = loaders.listMedDosesGivenBetween;
 
   const vitalTrends = household.dependants.flatMap((d) => d.vitalTrends);
@@ -225,28 +232,41 @@ export async function compileWeeklyDigest(
       };
     }),
   );
+
+  const windowEndMs = startOfDay(now).getTime() + 7 * 24 * 60 * 60 * 1000;
   const upcomingWeek = household.dependants
     .flatMap((d) => d.weekSchedule)
+    .filter((item) => {
+      const t = new Date(item.startsAt).getTime();
+      return t >= now.getTime() && t < windowEndMs;
+    })
     .sort(
       (a, b) =>
         new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
     );
+
+  const caregiverTodos = [...household.caregiverTodos].sort((a, b) =>
+    (a.dueDateKey ?? '').localeCompare(b.dueDateKey ?? ''),
+  );
 
   const avgAdherence =
     adherence.length === 0
       ? 0
       : adherence.reduce((n, a) => n + a.adherenceRate, 0) / adherence.length;
 
-  const narrativeSummary = `This week: household medication adherence averaged ${Math.round(avgAdherence * 100)}% across ${adherence.length} profiles. ${upcomingWeek.length} events are on the upcoming schedule. Review vitals trends before Sunday planning.`;
+  const narrativeSummary = `Next 7 days (${todayKey} → ${windowEnd}): ${upcomingWeek.length} scheduled events and ${caregiverTodos.length} caregiver to-dos. Household medication adherence averaged ${Math.round(avgAdherence * 100)}% across ${adherence.length} profiles.`;
 
   return {
     caregiverId,
     compiledAt: now.toISOString(),
     weekOf: mondayOfWeek(now),
-    headline: 'Weekly Sunday Overview — household health trends',
+    windowStart: todayKey,
+    windowEnd,
+    headline: 'Weekly overview — next 7 days + caregiver to-dos',
     vitalTrends,
     adherence,
     upcomingWeek,
+    caregiverTodos,
     narrativeSummary,
   };
 }
