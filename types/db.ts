@@ -57,7 +57,18 @@ export interface VisitDebriefParsed {
   actionItems: string[];
 }
 
-export type MedicalEventParsedPayload = OcrParsedPayload | VisitDebriefParsed;
+/** Care-home daily log provenance (chain-of-custody for parsed observations). */
+export interface CareHomeLogParsed {
+  eventType: 'CARE_HOME_DAILY_LOG';
+  effectiveDateISO?: string;
+  observationCount: number;
+  parserNotes: string[];
+}
+
+export type MedicalEventParsedPayload =
+  | OcrParsedPayload
+  | VisitDebriefParsed
+  | CareHomeLogParsed;
 
 /** Row shape for the `MedicalEvents` SQLite table. */
 export interface MedicalEventRecord {

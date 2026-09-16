@@ -120,6 +120,19 @@ Web uses `sessionStorage`-backed DB stubs (`db/*.web.ts`) so Sandbox seed surviv
 - `app/digest/daily.tsx` / `app/digest/weekly.tsx` — deep-link dashboards
 - `data/caregiverHousehold.ts` — demo household (Dad 78 Saskatoon, Leo 4 Regina, Self)
 
+### Care observations & shift handover (foundation)
+
+- Local-first aide logging + care-home text ingest + FHIR R4 export — not a production portal or cloud sync
+- `types/careObservation.ts` / `data/careLoinc.ts` — FHIR-aligned observations, handovers, delegate grants, impact events
+- `services/careHomeLogParser.ts` — pure care-home daily log text → CareObservations (BP = two LOINC Observations)
+- `services/delegateAccess.ts` / `services/privacyGuard.ts` — least-privilege aide tokens (≠ family ProxyGrant)
+- `services/shiftHandover.ts` — 30s Shift Handover Log → Daily Digest loader
+- `services/interop/fhirExport.ts` — Bundle export adapter (no provincial write-back)
+- `services/careImpact.ts` — SaMD-safe coordination impact counters
+- `services/sync/vaultSyncContract.ts` — E2EE CA-region sync stub (no network I/O)
+- `app/delegate/[token].tsx` / `app/delegate/log.tsx` — scoped aide UI
+- Clinician / ER pilot artifact remains **1-page SBAR + Emergency Pass**
+
 ### 1-Page SBAR Summarizer
 
 - `services/sbarEngine.ts` — async `compileSBAR()` educational context summarizer; folds MedicalEvents via `summarizeMedicalEvents` (no diagnosis / no prescribing)

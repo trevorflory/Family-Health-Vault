@@ -3,6 +3,8 @@
  * Daily = morning actionable scan; Weekly = 7-day trend overview.
  */
 
+import type { DigestShiftHandoverSummary } from './careObservation';
+
 export type DependantRole = 'aging_parent' | 'child' | 'self';
 
 export interface DigestDependantRef {
@@ -45,6 +47,8 @@ export interface DailyDependantSection {
   medsToday: DigestMedicationDue[];
   appointmentsWithin72h: DigestAppointment[];
   overdueTasks: DigestOverdueTask[];
+  /** Overnight / last ~36h aide shift handovers. */
+  recentHandovers?: DigestShiftHandoverSummary[];
 }
 
 export interface DailyDigestPayload {

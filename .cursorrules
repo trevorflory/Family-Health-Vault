@@ -19,6 +19,8 @@
 - `app/patient/[id]/sbarExport.tsx` — 1-page SBAR export UI
 - `app/digest/daily.tsx` / `app/digest/weekly.tsx` — caregiver digest dashboards (live FOI / labs / med marks)
 - `hooks/useDigestNotificationRouting.ts` — notification tap → digest deep-links
+- `types/careObservation.ts` — CareObservation, ShiftHandoverLog, DelegateGrant, CareImpactEvent
+- `app/delegate/[token].tsx` / `app/delegate/log.tsx` — scoped aide Shift Handover Log
 - `app/patient/[id]/uploadDoc.tsx` — OCR capture + verification UI
 - `app/patient/[id]/voiceDebrief.tsx` — post-visit voice debrief UI
 - `app/sandbox/aiTest.tsx` — local Ollama / SaMD sandbox UI
@@ -116,12 +118,23 @@
 ## Digest / notification rules
 
 1. `compileDailyDigest` / `compileWeeklyDigest` scan Aging Parent + Child + Self household profiles.
-2. Daily scan includes meds today, appointments ≤72h with prep alerts, FOI pending >30 days, missing labs.
+2. Daily scan includes meds today, appointments ≤72h with prep alerts, FOI pending >30 days, missing labs, and recent shift handovers (injectable loader).
 3. Prefer vault truth: live `FOIRequests` DRAFT age, MedicalEvents lab uploads, and `MedDoseMarks` via injectable `DigestDataLoaders` / `createLiveDigestLoaders()`. Fixture overdue tasks are fallbacks when FOI store is empty.
 4. “Review FOI Status” opens `foiStatus` (list of saved requests), not a blank wizard.
 5. Notifications: daily 07:00 and Sunday 16:00 via `expo-notifications`; deep-link to `/digest/daily` or `/digest/weekly`.
 6. Root layout must subscribe to notification taps / cold-start via `subscribeDigestNotificationRouting` (`hooks/useDigestNotificationRouting.ts`).
 7. Keep digest compilation testable with injectable `now` + loaders; mock `expo-notifications` in unit tests.
+
+## Care observations & delegate access rules
+
+1. Local-first: CareObservation / ShiftHandoverLog / DelegateGrant live on-device; future sync is E2EE ciphertext only to Canadian regions (`vaultSyncContract` stub).
+2. Aide `DelegateGrant` scopes (`LOG_HANDOVER`, `LOG_VITALS`, `LOG_MEALS`, `READ_TODAY_SCHEDULE`) are orthogonal to family `ProxyGrant` roles — never merge them.
+3. Least privilege: delegates cannot open FOI, POA docs, full MedicalEvents chart, SBAR export, or emergency decrypt (`privacyGuard`).
+4. Shift Handover Log is a 30-second meds / intake / mood capture that expands to CareObservations and surfaces on Daily Digest.
+5. Care-home log parse is educational ingestion only (SaMD); provenance via MedicalEvents (`CareHomeLogParsed`); BP = two Observations (systolic/diastolic LOINC).
+6. FHIR export (`fhirExport`) is adapter-only — no provincial write-back. Round-trip with import helpers in tests.
+7. CareImpactEvent copy is coordination proxies only (e.g. packets exported) — never claim diagnoses prevented or tax-dollar savings as fact.
+8. 1-page SBAR + Emergency Pass remain the clinician / ER / paramedic pilot evaluation artifacts — do not fork a parallel ER product.
 
 ## 811 Call Assistant rules
 

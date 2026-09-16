@@ -78,6 +78,14 @@ export default function RootLayout() {
           options={{ title: 'Weekly Sunday Overview' }}
         />
         <Stack.Screen
+          name="delegate/[token]"
+          options={{ title: 'Aide Access' }}
+        />
+        <Stack.Screen
+          name="delegate/log"
+          options={{ title: 'Shift Handover Log' }}
+        />
+        <Stack.Screen
           name="sandbox/index"
           options={{ title: 'QA Sandbox' }}
         />
