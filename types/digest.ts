@@ -31,6 +31,34 @@ export interface DigestAppointment {
   startsAt: string; // ISO-8601
   location: string;
   preparationAlert: string;
+  /** Optional clinician label (e.g. "Dr B") for conversational prompts. */
+  clinicianName?: string;
+  /** Optional end time; defaults to startsAt + 1h in calendar export. */
+  endsAt?: string;
+  /** Provenance when imported from device / Google Calendar ICS. */
+  source?: 'VAULT' | 'CALENDAR_ICS' | 'DEVICE_CALENDAR';
+  externalCalendarEventId?: string;
+}
+
+/** Automated caregiver prompts derived from appointments / vault state. */
+export type CaregiverPromptKind =
+  | 'CHECK_IN_TODAY'
+  | 'PREP_VISIT'
+  | 'POST_VISIT_DEBRIEF';
+
+export interface CaregiverPrompt {
+  promptId: string;
+  kind: CaregiverPromptKind;
+  label: string;
+  patientId: string;
+  nickname: string;
+  appointmentId?: string;
+  /** ISO-8601 when the prompt becomes relevant. */
+  dueAt?: string;
+  /** In-app path, e.g. /patient/:id/voiceDebrief */
+  href?: string;
+  /** Lower sorts first within a day. */
+  priority: number;
 }
 
 export type OverdueTaskKind = 'FOI_PENDING' | 'MISSING_LAB_UPLOAD' | 'OTHER';
@@ -49,6 +77,8 @@ export interface DailyDependantSection {
   medsToday: DigestMedicationDue[];
   appointmentsWithin72h: DigestAppointment[];
   overdueTasks: DigestOverdueTask[];
+  /** Appointment-driven check-ins, prep, and post-visit voice notes. */
+  prompts: CaregiverPrompt[];
   /** Overnight / last ~36h aide shift handovers. */
   recentHandovers?: DigestShiftHandoverSummary[];
 }
@@ -92,6 +122,10 @@ export interface CaregiverTodo {
   patientId?: string;
   /** YYYY-MM-DD when known */
   dueDateKey?: string;
+  /** When generated from an appointment prompt. */
+  sourcePromptKind?: CaregiverPromptKind;
+  appointmentId?: string;
+  href?: string;
 }
 
 export interface WeeklyDigestPayload {

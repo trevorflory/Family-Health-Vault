@@ -1,6 +1,7 @@
 import { getHousehold } from '../data/caregiverHousehold';
 import type { MedicalEventRecord } from '../types/db';
 import type {
+  CaregiverPrompt,
   DailyDependantSection,
   DailyDigestPayload,
   DigestAppointment,
@@ -8,6 +9,11 @@ import type {
 } from '../types/digest';
 import type { DigestShiftHandoverSummary } from '../types/careObservation';
 import type { FOIRequestRecord } from '../types/foiPayload';
+import {
+  generateCaregiverPrompts,
+  mergeCaregiverTodos,
+  promptsToCaregiverTodos,
+} from './caregiverPrompts';
 import {
   FOI_OVERDUE_DAYS,
   resolveOverdueTasks,
@@ -36,6 +42,10 @@ export interface DigestDataLoaders {
     patientId: string,
     now: Date,
   ) => Promise<DigestShiftHandoverSummary[]>;
+  /** Vault / calendar-imported appointments merged over household fixtures. */
+  listAppointmentsForPatient?: (
+    patientId: string,
+  ) => Promise<DigestAppointment[]>;
 }
 
 /** Wire digest compilation to local FOI / MedicalEvents / med-dose / handover stores. */
@@ -49,6 +59,8 @@ export function createLiveDigestLoaders(): DigestDataLoaders {
   const meds = require('../db/medDoses') as typeof import('../db/medDoses');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const handover = require('./shiftHandover') as typeof import('./shiftHandover');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const appts = require('../db/appointments') as typeof import('../db/appointments');
   return {
     listFoiRequestsForPatient: (id) => foi.listFOIRequestsForPatient(id),
     listMedicalEventsForPatient: (id) => events.listMedicalEventsForPatient(id),
@@ -58,6 +70,7 @@ export function createLiveDigestLoaders(): DigestDataLoaders {
       meds.listMedDosesGivenBetween(id, from, to),
     listRecentHandoversForPatient: (id, now) =>
       handover.listRecentHandoverSummaries(id, now),
+    listAppointmentsForPatient: (id) => appts.listAppointmentsForPatient(id),
   };
 }
 
@@ -106,6 +119,20 @@ function appointmentsWithin72Hours(
     );
 }
 
+/** Fixture appointments overwritten by same appointmentId from the vault store. */
+export function mergeAppointments(
+  fixture: DigestAppointment[],
+  live: DigestAppointment[],
+): DigestAppointment[] {
+  const byId = new Map<string, DigestAppointment>();
+  for (const a of fixture) byId.set(a.appointmentId, a);
+  for (const a of live) byId.set(a.appointmentId, a);
+  return [...byId.values()].sort(
+    (a, b) =>
+      new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+  );
+}
+
 async function emptyList<T>(): Promise<T[]> {
   return [];
 }
@@ -135,19 +162,22 @@ export async function compileDailyDigest(
   const listHandovers =
     loaders.listRecentHandoversForPatient ??
     (async () => [] as DigestShiftHandoverSummary[]);
+  const listAppts = loaders.listAppointmentsForPatient ?? emptyList;
 
   const sections: DailyDependantSection[] = [];
 
   for (const dep of household.dependants) {
     const patientId = dep.dependant.patientId;
-    const [foiRecords, medicalEvents, givenIds, recentHandovers] =
+    const [foiRecords, medicalEvents, givenIds, recentHandovers, liveAppts] =
       await Promise.all([
         listFoi(patientId),
         listEvents(patientId),
         listMedMarks(patientId, todayKey),
         listHandovers(patientId, now),
+        listAppts(patientId),
       ]);
     const givenSet = new Set(givenIds);
+    const appointments = mergeAppointments(dep.appointments, liveAppts);
 
     const medsToday = [...(dep.medsByDate[todayKey] ?? [])].map((m) => ({
       ...m,
@@ -161,11 +191,19 @@ export async function compileDailyDigest(
       now,
     });
 
+    const prompts = generateCaregiverPrompts({
+      dependant: dep.dependant,
+      appointments,
+      medicalEvents,
+      now,
+    });
+
     sections.push({
       dependant: dep.dependant,
       medsToday,
-      appointmentsWithin72h: appointmentsWithin72Hours(dep.appointments, now),
+      appointmentsWithin72h: appointmentsWithin72Hours(appointments, now),
       overdueTasks,
+      prompts,
       recentHandovers,
     });
   }
@@ -233,9 +271,41 @@ export async function compileWeeklyDigest(
     }),
   );
 
+  const listAppts = loaders.listAppointmentsForPatient ?? emptyList;
+  const listEvents = loaders.listMedicalEventsForPatient ?? emptyList;
+
+  const weekPrompts: CaregiverPrompt[] = [];
+  const upcomingFromAppts: WeeklyDigestPayload['upcomingWeek'] = [];
+
+  for (const dep of household.dependants) {
+    const [liveAppts, medicalEvents] = await Promise.all([
+      listAppts(dep.dependant.patientId),
+      listEvents(dep.dependant.patientId),
+    ]);
+    const appointments = mergeAppointments(dep.appointments, liveAppts);
+    weekPrompts.push(
+      ...generateCaregiverPrompts({
+        dependant: dep.dependant,
+        appointments,
+        medicalEvents,
+        now,
+      }),
+    );
+    for (const a of appointments) {
+      upcomingFromAppts.push({
+        patientId: dep.dependant.patientId,
+        displayName: dep.dependant.displayName,
+        title: a.title,
+        startsAt: a.startsAt,
+      });
+    }
+  }
+
   const windowEndMs = startOfDay(now).getTime() + 7 * 24 * 60 * 60 * 1000;
-  const upcomingWeek = household.dependants
-    .flatMap((d) => d.weekSchedule)
+  const upcomingWeek = [
+    ...household.dependants.flatMap((d) => d.weekSchedule),
+    ...upcomingFromAppts,
+  ]
     .filter((item) => {
       const t = new Date(item.startsAt).getTime();
       return t >= now.getTime() && t < windowEndMs;
@@ -243,10 +313,19 @@ export async function compileWeeklyDigest(
     .sort(
       (a, b) =>
         new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
-    );
+    )
+    .filter((item, index, arr) => {
+      const key = `${item.patientId}|${item.startsAt}|${item.title}`;
+      return (
+        arr.findIndex(
+          (x) => `${x.patientId}|${x.startsAt}|${x.title}` === key,
+        ) === index
+      );
+    });
 
-  const caregiverTodos = [...household.caregiverTodos].sort((a, b) =>
-    (a.dueDateKey ?? '').localeCompare(b.dueDateKey ?? ''),
+  const caregiverTodos = mergeCaregiverTodos(
+    household.caregiverTodos,
+    promptsToCaregiverTodos(weekPrompts, now),
   );
 
   const avgAdherence =

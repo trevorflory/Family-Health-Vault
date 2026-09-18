@@ -133,6 +133,8 @@ export function buildHouseholdForNow(
         startsAt: isoDateTimeOffset(now, 2, 10, 30),
         location: 'Saskatoon City Hospital',
         preparationAlert: `Print SBAR note for Dad's visit on ${weekdayName(isoDateTimeOffset(now, 2, 10, 30))}`,
+        clinicianName: 'Dr B',
+        source: 'VAULT',
       },
       {
         appointmentId: 'appt-dad-eye',
@@ -140,6 +142,8 @@ export function buildHouseholdForNow(
         startsAt: isoDateTimeOffset(now, 0, 14, 0),
         location: 'Saskatoon Vision Clinic',
         preparationAlert: 'Bring current glasses and medication list',
+        clinicianName: 'Dr Patel',
+        source: 'VAULT',
       },
     ],
     overdueTasks: [

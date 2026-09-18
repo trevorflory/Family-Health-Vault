@@ -1,13 +1,13 @@
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getPatientVaultProfile } from '../../../data/patientVault';
-import {
-  formatHealthStory,
-  formatHealthStoryDeep,
-} from '../../../utils/healthStory';
+import { getVaultMedOverrides } from '../../../db/vaultMedOverrides';
+import { formatHealthStory } from '../../../utils/healthStory';
+import type { MedicationRecord } from '../../../types/triage811';
 
 /**
- * Person care hub — Myself / family member IA (About me · My Care · My History).
+ * Person care hub — Ask vault · My Care · My History (no duplicate About me).
  */
 export default function PatientScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -16,10 +16,33 @@ export default function PatientScreen() {
   const title = isSelf
     ? 'Myself'
     : profile?.preferredName ?? profile?.fullName ?? 'Care hub';
-  const story = profile
-    ? formatHealthStoryDeep(profile)
+  const shortStory = profile
+    ? formatHealthStory(profile)
     : 'No vault profile on file for this person yet.';
-  const shortStory = profile ? formatHealthStory(profile) : story;
+
+  const [meds, setMeds] = useState<MedicationRecord[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return;
+      void (async () => {
+        const override = await getVaultMedOverrides(id);
+        const base =
+          override ??
+          (profile?.activeMedications ?? []).filter(
+            (m): m is MedicationRecord => Boolean(m?.name),
+          );
+        setMeds(base);
+      })();
+    }, [id, profile]),
+  );
+
+  const medSummary =
+    meds.length > 0
+      ? meds
+          .map((m) => `${m.name}${m.dose ? ` ${m.dose}` : ''}`)
+          .join(' · ')
+      : 'No active medications on file';
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -27,57 +50,38 @@ export default function PatientScreen() {
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.lede}>{shortStory}</Text>
 
-      <Text style={styles.section}>About me</Text>
-      <View style={styles.tile}>
-        <Text style={styles.tileBody}>{story}</Text>
-      </View>
       <Link href={`/patient/${id}/askVault`} asChild>
         <Pressable style={styles.primary}>
           <Text style={styles.primaryText}>Ask my vault</Text>
           <Text style={styles.primarySub}>
-            SaMD-safe Q&A over vault history · chat-style
+            Ask any question about this person’s vault · BLUF then detail
           </Text>
         </Pressable>
       </Link>
 
       <Text style={styles.section}>My Care</Text>
-      <Link href={`/patient/${id}/voiceDebrief`} asChild>
+      <Link href={`/patient/${id}/appointments`} asChild>
         <Pressable style={styles.row}>
-          <Text style={styles.rowTitle}>Medical professionals · record visit</Text>
+          <Text style={styles.rowTitle}>Medical Appointments</Text>
           <Text style={styles.rowMeta}>
-            Voice / typed debrief · post-visit notes
-          </Text>
-        </Pressable>
-      </Link>
-      <Link href={`/patient/${id}/insights`} asChild>
-        <Pressable style={styles.row}>
-          <Text style={styles.rowTitle}>Visit info & prep insights</Text>
-          <Text style={styles.rowMeta}>Past context · biomarker trends</Text>
-        </Pressable>
-      </Link>
-      <Link href={`/patient/${id}/sbarExport`} asChild>
-        <Pressable style={styles.row}>
-          <Text style={styles.rowTitle}>SBAR / summary for visit</Text>
-          <Text style={styles.rowMeta}>
-            Tailor for visit type · educational handoff
+            Record a visit · appointment prep (SBAR / insights / goals)
           </Text>
         </Pressable>
       </Link>
       <Link href={`/patient/${id}/call811Prep`} asChild>
         <Pressable style={styles.row}>
-          <Text style={styles.rowTitle}>811 · Connection & Info</Text>
-          <Text style={styles.rowMeta}>Dispatcher cue sheet for caregivers</Text>
+          <Text style={styles.rowTitle}>Symptom Checker</Text>
+          <Text style={styles.rowMeta}>
+            Life-threatening gate first · then 811 prep for this person
+          </Text>
         </Pressable>
       </Link>
-      <View style={styles.row}>
-        <Text style={styles.rowTitle}>Prescriptions</Text>
-        <Text style={styles.rowMeta}>
-          {profile?.activeMedications
-            ?.filter((m): m is NonNullable<typeof m> => Boolean(m?.name))
-            .map((m) => `${m.name}${m.dose ? ` ${m.dose}` : ''}`)
-            .join(' · ') || 'No active medications on file'}
-        </Text>
-      </View>
+      <Link href={`/patient/${id}/prescriptions`} asChild>
+        <Pressable style={styles.row}>
+          <Text style={styles.rowTitle}>Prescriptions</Text>
+          <Text style={styles.rowMeta}>{medSummary}</Text>
+        </Pressable>
+      </Link>
 
       <Text style={styles.section}>My History</Text>
       <Link href={`/patient/${id}/portalSync`} asChild>
@@ -150,12 +154,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  tile: {
-    backgroundColor: '#eef4f4',
-    borderRadius: 12,
-    padding: 14,
-  },
-  tileBody: { fontSize: 14, color: '#355556', lineHeight: 20 },
   primary: {
     backgroundColor: '#0f3d3e',
     borderRadius: 12,

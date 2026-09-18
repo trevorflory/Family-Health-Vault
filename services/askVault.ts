@@ -84,8 +84,40 @@ export function buildAskVaultContext(events: MedicalEventRecord[]): {
       ...lines,
       '',
       'When answering, cite event ids from the list above. Do not invent labs or medications.',
+      'Structure every reply as Bottom Line Up Front: start with one short BLUF paragraph, then a blank line, then supporting detail.',
+      'Prefix the first paragraph with "BLUF:" and the detail section with "Details:".',
     ].join('\n'),
   };
+}
+
+/** Split an Ask Vault reply into BLUF + detail for UI. */
+export function formatBlufAnswer(raw: string): { bluf: string; detail: string } {
+  const text = raw.trim();
+  if (!text) return { bluf: '', detail: '' };
+
+  const blufMatch = text.match(
+    /BLUF\s*[:\-–]?\s*([\s\S]*?)(?=\n\s*Details\s*[:\-–]|$)/i,
+  );
+  const detailMatch = text.match(/Details\s*[:\-–]?\s*([\s\S]*)$/i);
+  if (blufMatch) {
+    return {
+      bluf: blufMatch[1].trim(),
+      detail: (detailMatch?.[1] ?? '').trim(),
+    };
+  }
+
+  const paras = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  if (paras.length >= 2) {
+    return { bluf: paras[0], detail: paras.slice(1).join('\n\n') };
+  }
+  const sentenceEnd = text.search(/[.!?](\s|$)/);
+  if (sentenceEnd > 0 && sentenceEnd < text.length - 1) {
+    return {
+      bluf: text.slice(0, sentenceEnd + 1).trim(),
+      detail: text.slice(sentenceEnd + 1).trim(),
+    };
+  }
+  return { bluf: text, detail: '' };
 }
 
 export async function askMyVault(options: {

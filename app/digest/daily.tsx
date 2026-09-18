@@ -1,5 +1,5 @@
-import { Link, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,7 +10,8 @@ import {
   View,
 } from 'react-native';
 import { DEMO_CAREGIVER_ID } from '../../data/caregiverHousehold';
-import { markMedDosesGiven } from '../../db/medDoses';
+import { listAgendaItemsDone, setAgendaItemDone } from '../../db/agendaMarks';
+import { setMedDoseGiven } from '../../db/medDoses';
 import { compileCareImpactSummary } from '../../services/careImpact';
 import {
   compileDailyDigest,
@@ -38,11 +39,7 @@ function MedCheckboxRow({
   onToggle: () => void;
 }) {
   return (
-    <Pressable
-      style={styles.medRow}
-      onPress={med.given ? undefined : onToggle}
-      disabled={med.given}
-    >
+    <Pressable style={styles.medRow} onPress={onToggle}>
       <View style={[styles.checkbox, med.given && styles.checkboxOn]}>
         {med.given ? <Text style={styles.checkboxMark}>✓</Text> : null}
       </View>
@@ -56,12 +53,48 @@ function MedCheckboxRow({
   );
 }
 
+function AgendaCheckRow({
+  label,
+  done,
+  href,
+  onToggle,
+}: {
+  label: string;
+  done: boolean;
+  href?: string;
+  onToggle: () => void;
+}) {
+  const labelEl = (
+    <Text style={[styles.line, done && styles.lineDone]}>{label}</Text>
+  );
+  return (
+    <View style={styles.medRow}>
+      <Pressable onPress={onToggle} accessibilityRole="checkbox">
+        <View style={[styles.checkbox, done && styles.checkboxOn]}>
+          {done ? <Text style={styles.checkboxMark}>✓</Text> : null}
+        </View>
+      </Pressable>
+      {href ? (
+        <Link href={href} asChild>
+          <Pressable style={styles.medTextWrap}>{labelEl}</Pressable>
+        </Link>
+      ) : (
+        <View style={styles.medTextWrap}>{labelEl}</View>
+      )}
+    </View>
+  );
+}
+
 function PersonSection({
   section,
-  onMarkMed,
+  agendaDone,
+  onToggleMed,
+  onToggleAgenda,
 }: {
   section: DailyDependantSection;
-  onMarkMed: (patientId: string, medicationId: string) => void;
+  agendaDone: Set<string>;
+  onToggleMed: (patientId: string, medicationId: string, given: boolean) => void;
+  onToggleAgenda: (itemId: string, done: boolean) => void;
 }) {
   const hasAppt = section.appointmentsWithin72h.length > 0;
   const hasFoi = section.overdueTasks.some((t) => t.kind === 'FOI_PENDING');
@@ -84,7 +117,11 @@ function PersonSection({
               key={m.medicationId}
               med={m}
               onToggle={() =>
-                onMarkMed(section.dependant.patientId, m.medicationId)
+                onToggleMed(
+                  section.dependant.patientId,
+                  m.medicationId,
+                  !m.given,
+                )
               }
             />
           ))
@@ -99,9 +136,40 @@ function PersonSection({
           section.appointmentsWithin72h.map((a) => (
             <View key={a.appointmentId} style={styles.apptBlock}>
               <Text style={styles.line}>{a.title}</Text>
-              <Text style={styles.alert}>{a.preparationAlert}</Text>
+              {a.clinicianName ? (
+                <Text style={styles.meta}>{a.clinicianName}</Text>
+              ) : null}
+              <Text style={styles.meta}>
+                {new Date(a.startsAt).toLocaleString('en-CA', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </Text>
             </View>
           ))
+        )}
+      </View>
+
+      <View style={styles.block}>
+        <Text style={styles.sectionLabel}>Prompts & prep to-dos</Text>
+        {section.prompts.length === 0 ? (
+          <Text style={styles.meta}>No appointment prompts right now</Text>
+        ) : (
+          section.prompts.map((p) => {
+            const id = `prompt-${p.promptId}`;
+            return (
+              <AgendaCheckRow
+                key={p.promptId}
+                label={p.label}
+                done={agendaDone.has(id)}
+                href={p.href}
+                onToggle={() => onToggleAgenda(id, !agendaDone.has(id))}
+              />
+            );
+          })
         )}
       </View>
 
@@ -110,11 +178,17 @@ function PersonSection({
         {section.overdueTasks.length === 0 ? (
           <Text style={styles.meta}>All clear</Text>
         ) : (
-          section.overdueTasks.map((t) => (
-            <Text key={t.taskId} style={styles.overdue}>
-              ○ {t.label} ({t.ageDays}d)
-            </Text>
-          ))
+          section.overdueTasks.map((t) => {
+            const id = `task-${t.taskId}`;
+            return (
+              <AgendaCheckRow
+                key={t.taskId}
+                label={`${t.label} (${t.ageDays}d)`}
+                done={agendaDone.has(id)}
+                onToggle={() => onToggleAgenda(id, !agendaDone.has(id))}
+              />
+            );
+          })
         )}
       </View>
 
@@ -179,43 +253,99 @@ export default function DailyDigestScreen() {
 
   const [digest, setDigest] = useState<DailyDigestPayload | null>(null);
   const [impact, setImpact] = useState<CareImpactSummary | null>(null);
+  const [agendaDone, setAgendaDone] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const refreshQuiet = useCallback(async () => {
+    const dateKey = localDateKey();
+    const [payload, impactSummary, doneIds] = await Promise.all([
+      compileDailyDigest(caregiverId, new Date(), createLiveDigestLoaders()),
+      compileCareImpactSummary({ caregiverId }),
+      listAgendaItemsDone(dateKey),
+    ]);
+    setDigest(payload);
+    setImpact(impactSummary);
+    setAgendaDone(new Set(doneIds));
+  }, [caregiverId]);
 
   const load = useCallback(async () => {
     try {
       setBusy(true);
       setError(null);
-      const [payload, impactSummary] = await Promise.all([
-        compileDailyDigest(caregiverId, new Date(), createLiveDigestLoaders()),
-        compileCareImpactSummary({ caregiverId }),
-      ]);
-      setDigest(payload);
-      setImpact(impactSummary);
+      await refreshQuiet();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to compile digest');
     } finally {
       setBusy(false);
     }
-  }, [caregiverId]);
+  }, [refreshQuiet]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
-  async function markOneMed(patientId: string, medicationId: string) {
+  async function toggleMed(
+    patientId: string,
+    medicationId: string,
+    given: boolean,
+  ) {
+    // Optimistic — avoid full-page busy reload (scroll jump).
+    setDigest((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        sections: prev.sections.map((s) =>
+          s.dependant.patientId !== patientId
+            ? s
+            : {
+                ...s,
+                medsToday: s.medsToday.map((m) =>
+                  m.medicationId === medicationId ? { ...m, given } : m,
+                ),
+              },
+        ),
+      };
+    });
     try {
-      await markMedDosesGiven({
+      await setMedDoseGiven({
         patientId,
-        medicationIds: [medicationId],
+        medicationId,
         dateKey: localDateKey(),
+        given,
       });
-      await load();
+      await refreshQuiet();
     } catch (err) {
       Alert.alert(
         'Could not save',
         err instanceof Error ? err.message : 'Med mark failed',
       );
+      await refreshQuiet();
+    }
+  }
+
+  async function toggleAgenda(itemId: string, done: boolean) {
+    setAgendaDone((prev) => {
+      const next = new Set(prev);
+      if (done) next.add(itemId);
+      else next.delete(itemId);
+      return next;
+    });
+    try {
+      await setAgendaItemDone({
+        itemId,
+        dateKey: localDateKey(),
+        done,
+      });
+      await refreshQuiet();
+    } catch (err) {
+      Alert.alert(
+        'Could not save',
+        err instanceof Error ? err.message : 'Checklist update failed',
+      );
+      await refreshQuiet();
     }
   }
 
@@ -279,7 +409,9 @@ export default function DailyDigestScreen() {
         <PersonSection
           key={section.dependant.patientId}
           section={section}
-          onMarkMed={markOneMed}
+          agendaDone={agendaDone}
+          onToggleMed={toggleMed}
+          onToggleAgenda={toggleAgenda}
         />
       ))}
     </ScrollView>
@@ -317,24 +449,25 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: '#d5e2e2',
-    gap: 6,
+    gap: 4,
   },
-  cardTitle: { fontSize: 20, fontWeight: '700', color: '#143536' },
+  cardTitle: { fontSize: 17, fontWeight: '700', color: '#143536' },
   role: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#5a7374',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   block: {
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: '#e7f1f1',
-    gap: 4,
+    gap: 2,
   },
   sectionLabel: {
     fontSize: 12,
@@ -366,6 +499,7 @@ const styles = StyleSheet.create({
   lineDone: { color: '#5a7374', textDecorationLine: 'line-through' },
   alert: { fontSize: 14, color: '#6b4f1d', marginTop: 2 },
   overdue: { fontSize: 14, color: '#8a2b1e', lineHeight: 20 },
+  prompt: { fontSize: 14, color: '#1d5c5e', lineHeight: 20 },
   apptBlock: { marginBottom: 4 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   actionBtn: {

@@ -25,7 +25,11 @@
 - `app/patient/[id]/voiceDebrief.tsx` — post-visit voice debrief UI
 - `app/sandbox/aiTest.tsx` — local Ollama / SaMD sandbox UI
 - `app/sandbox/index.tsx` — QA core-loop sandbox (digest / SBAR / FOI / 811)
-- `utils/mockSeeder.ts` — SQLite dummy Dad/Child profile seeder
+- `utils/homeAgenda.ts` — Home “Today / Tomorrow / My Week” from digests + appointment prompts
+- `services/caregiverPrompts.ts` — auto check-in / prep / post-visit voice-note prompts from appointments
+- `services/calendar/ics.ts` + `services/calendar/googleCalendarBridge.ts` — Google Calendar via .ics FILE_IMPORT/export (no live OAuth)
+- `db/appointments.ts` — vault appointments store (ICS imports + manual)
+
 - `app/patient/[id]/emergencyPass.tsx` — emergency QR + wallet card
 - `app/patient/[id]/proxyAccess.tsx` — proxy roles, access log, age-out hand-off
 - `app/patient/[id]/insights.tsx` — biomarker trends / visit-prep Insights
@@ -141,12 +145,12 @@
 
 ## 811 Call Assistant rules
 
-1. `generate811Script` is a Contextual Summarizer / Caregiver Script Assistant only.
+1. `generate811Script` is a Contextual Summarizer / Caregiver Script Assistant only (Symptom Checker UI may guide intake).
 2. Never emit diagnostic verdicts, acuity scores, or treatment/prescription instructions.
 3. Tolerate null/missing medication dose and frequency without crashing.
 4. Frame output for answering the 811 nurse’s dispatcher script (they ask; caregiver answers from vault).
 5. Always return `spokenIntroScript`, exactly 4 `dispatcherCueSheet` cues, `historicalRedFlags`, and exactly 3 `questionsToAskNurse`.
-6. Call action uses `expo-linking` with `tel:811` only after a script is generated.
+6. Call action uses `expo-linking` with `tel:811` after a script is generated; optional `tel:911` + Emergency Pass QR only when the caregiver selects life-threatening-now flags (`offerEmergencyTools`) — never as a clinical disposition.
 
 ## FOI module rules
 

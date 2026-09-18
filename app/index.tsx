@@ -1,5 +1,5 @@
-import { Link, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import {
   DEMO_CAREGIVER_ID,
@@ -15,6 +17,7 @@ import {
   getHousehold,
 } from '../data/caregiverHousehold';
 import { getPatientVaultProfile } from '../data/patientVault';
+import { listAgendaItemsDone } from '../db/agendaMarks';
 import {
   compileDailyDigest,
   compileWeeklyDigest,
@@ -22,7 +25,87 @@ import {
 } from '../services/digestEngine';
 import type { DigestDependantRef } from '../types/digest';
 import { formatHealthStory } from '../utils/healthStory';
-import { buildHomeAgenda, type HomeAgenda } from '../utils/homeAgenda';
+import {
+  buildHomeAgenda,
+  type HomeAgenda,
+  type HomeAgendaItem,
+} from '../utils/homeAgenda';
+
+function localDateKey(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+const TODAY_PREVIEW = 4;
+
+/** Read-only tick mirror (1B) — checking happens on Daily. */
+function TodayMirrorRow({ item }: { item: HomeAgendaItem }) {
+  return (
+    <View style={styles.mirrorRow} accessibilityRole="text">
+      <Text style={[styles.mirrorTick, item.done && styles.mirrorTickDone]}>
+        {item.done ? '✓' : '○'}
+      </Text>
+      <Text
+        style={[styles.mirrorLabel, item.done && styles.mirrorLabelDone]}
+        numberOfLines={1}
+      >
+        {item.label}
+      </Text>
+    </View>
+  );
+}
+
+function SectionHeadingLink({
+  href,
+  label,
+  onPress,
+}: {
+  href?: string;
+  label: string;
+  onPress?: () => void;
+}) {
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="link"
+        style={styles.sectionHit}
+      >
+        <Text style={styles.sectionLink}>{label}</Text>
+      </Pressable>
+    );
+  }
+  if (!href) {
+    return <Text style={styles.section}>{label}</Text>;
+  }
+  return (
+    <Link href={href} asChild>
+      <Pressable accessibilityRole="link" style={styles.sectionHit}>
+        <Text style={styles.sectionLink}>{label}</Text>
+      </Pressable>
+    </Link>
+  );
+}
+
+function groupWeekByPerson(items: HomeAgendaItem[]): {
+  key: string;
+  label: string;
+  items: HomeAgendaItem[];
+}[] {
+  const map = new Map<string, { label: string; items: HomeAgendaItem[] }>();
+  for (const item of items) {
+    const key = item.nickname ?? item.patientId ?? 'Household';
+    const existing = map.get(key);
+    if (existing) {
+      existing.items.push(item);
+    } else {
+      map.set(key, { label: key, items: [item] });
+    }
+  }
+  return [...map.entries()].map(([key, v]) => ({ key, ...v }));
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -31,27 +114,33 @@ export default function HomeScreen() {
   const [story, setStory] = useState('');
   const [family, setFamily] = useState<DigestDependantRef[]>([]);
   const [agenda, setAgenda] = useState<HomeAgenda | null>(null);
-  const [show811Picker, setShow811Picker] = useState(false);
+  const [showSymptomPicker, setShowSymptomPicker] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setBusy(true);
       setError(null);
       const now = new Date();
+      const dateKey = localDateKey(now);
       const loaders = createLiveDigestLoaders();
-      const [daily, weekly] = await Promise.all([
+      const [daily, weekly, agendaDoneIds] = await Promise.all([
         compileDailyDigest(DEMO_CAREGIVER_ID, now, loaders),
         compileWeeklyDigest(DEMO_CAREGIVER_ID, now, loaders),
+        listAgendaItemsDone(dateKey),
       ]);
       const selfVault = getPatientVaultProfile(DEMO_SELF_ID);
-      setStory(selfVault ? formatHealthStory(selfVault) : 'Your vault profile is empty.');
+      setStory(
+        selfVault
+          ? formatHealthStory(selfVault)
+          : 'Your vault profile is empty.',
+      );
       const household = getHousehold(DEMO_CAREGIVER_ID, now);
       setFamily(
         (household?.dependants ?? [])
           .map((d) => d.dependant)
           .filter((d) => d.role !== 'self'),
       );
-      setAgenda(buildHomeAgenda(daily, weekly, now));
+      setAgenda(buildHomeAgenda(daily, weekly, now, { agendaDoneIds }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load home');
     } finally {
@@ -59,9 +148,38 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  const todayPreview = useMemo(() => {
+    const items = agenda?.today ?? [];
+    const open = items.filter((i) => !i.done);
+    const done = items.filter((i) => i.done);
+    const ordered = [...open, ...done];
+    return {
+      shown: ordered.slice(0, TODAY_PREVIEW),
+      more: Math.max(0, ordered.length - TODAY_PREVIEW),
+      total: ordered.length,
+      openCount: open.length,
+    };
+  }, [agenda]);
+
+  const weekGroups = useMemo(() => {
+    const open = (agenda?.week ?? []).filter((i) => !i.done);
+    return groupWeekByPerson(open).slice(0, 4);
+  }, [agenda]);
+
+  const familyDensity =
+    family.length >= 6 ? 'dense' : family.length >= 4 ? 'compact' : 'roomy';
+
+  const familyTileStyle: StyleProp<ViewStyle> = StyleSheet.flatten([
+    styles.miniTile,
+    familyDensity === 'dense' && styles.miniTileDense,
+    familyDensity === 'compact' && styles.miniTileCompact,
+  ]);
 
   const pickerPeople: DigestDependantRef[] = [
     {
@@ -75,7 +193,7 @@ export default function HomeScreen() {
     ...family,
   ];
 
-  if (busy) {
+  if (busy && !agenda) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color="#0f3d3e" />
@@ -84,10 +202,10 @@ export default function HomeScreen() {
     );
   }
 
-  if (error) {
+  if (error && !agenda) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.heading}>Family Health Vault</Text>
+        <Text style={styles.heading}>Could not load home</Text>
         <Text style={styles.meta}>{error}</Text>
         <Pressable style={styles.primaryBtn} onPress={load}>
           <Text style={styles.primaryBtnText}>Retry</Text>
@@ -98,80 +216,102 @@ export default function HomeScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.brand}>Family Health Vault</Text>
-      <Text style={styles.lede}>
-        Your household desk — summaries only, never diagnoses.
+      <Text style={styles.disclaimer}>
+        A Vault for you and your families health to keep safe, provide summaries
+        and ask questions of — but there are no diagnoses.
       </Text>
 
-      <Text style={styles.section}>Myself</Text>
+      <SectionHeadingLink
+        href={`/patient/${DEMO_SELF_ID}`}
+        label="Myself"
+      />
       <Link href={`/patient/${DEMO_SELF_ID}`} asChild>
-        <Pressable style={styles.tile}>
-          <Text style={styles.tileTitle}>Myself</Text>
-          <Text style={styles.tileBody}>{story}</Text>
-          <Text style={styles.tileCta}>Open my care hub →</Text>
+        <Pressable style={styles.tile} accessibilityRole="link">
+          <Text style={styles.tileBody} numberOfLines={3}>
+            {story}
+          </Text>
         </Pressable>
       </Link>
 
-      <Text style={styles.section}>My Family</Text>
+      <SectionHeadingLink href="/family" label="My Family" />
       <View style={styles.familyRow}>
         {family.map((p) => (
           <Link key={p.patientId} href={`/patient/${p.patientId}`} asChild>
-            <Pressable style={styles.miniTile}>
-              <Text style={styles.miniNick}>{p.nickname}</Text>
-              <Text style={styles.miniMeta}>
-                {p.ageYears}y · {p.city}
+            <Pressable style={familyTileStyle}>
+              <Text
+                style={
+                  familyDensity === 'dense'
+                    ? StyleSheet.flatten([styles.miniNick, styles.miniNickDense])
+                    : styles.miniNick
+                }
+                numberOfLines={1}
+              >
+                {p.nickname}
               </Text>
+              {familyDensity === 'roomy' ? (
+                <Text style={styles.miniMeta}>
+                  {p.ageYears}y · {p.city}
+                </Text>
+              ) : familyDensity === 'compact' ? (
+                <Text style={styles.miniMeta}>{p.ageYears}y</Text>
+              ) : null}
             </Pressable>
           </Link>
         ))}
       </View>
 
-      <Text style={styles.section}>Today</Text>
+      <SectionHeadingLink href="/digest/daily" label="Today" />
       <Link href="/digest/daily" asChild>
-        <Pressable style={styles.tile}>
-          {(agenda?.today ?? []).length === 0 ? (
+        <Pressable style={styles.tileCompact} accessibilityRole="link">
+          {todayPreview.total === 0 ? (
             <Text style={styles.tileBody}>Nothing queued for today.</Text>
           ) : (
-            agenda!.today.slice(0, 6).map((item) => (
-              <Text key={item.id} style={styles.checkLine}>
-                ○ {item.label}
+            <>
+              <Text style={styles.todayMeta}>
+                {todayPreview.openCount} open · priority order · check off on
+                Daily
               </Text>
+              {todayPreview.shown.map((item) => (
+                <TodayMirrorRow key={item.id} item={item} />
+              ))}
+              {todayPreview.more > 0 ? (
+                <Text style={styles.moreHint}>+{todayPreview.more} more</Text>
+              ) : null}
+            </>
+          )}
+        </Pressable>
+      </Link>
+
+      <SectionHeadingLink href="/digest/weekly" label="My Week" />
+      <Link href="/digest/weekly" asChild>
+        <Pressable style={styles.tile} accessibilityRole="link">
+          {weekGroups.length === 0 ? (
+            <Text style={styles.tileBody}>No open events this week.</Text>
+          ) : (
+            weekGroups.map((g) => (
+              <View key={g.key} style={styles.weekGroup}>
+                <Text style={styles.weekGroupTitle}>{g.label}</Text>
+                {g.items.slice(0, 2).map((item) => (
+                  <Text key={item.id} style={styles.bullet} numberOfLines={2}>
+                    · {item.label.replace(`${g.label} — `, '').replace(`${g.label}: `, '')}
+                  </Text>
+                ))}
+              </View>
             ))
           )}
-          <Text style={styles.tileCta}>Open Daily Morning Status →</Text>
         </Pressable>
       </Link>
 
-      <Text style={styles.section}>Tomorrow</Text>
-      <View style={styles.tileMuted}>
-        {(agenda?.tomorrow ?? []).length === 0 ? (
-          <Text style={styles.tileBody}>Clear so far.</Text>
-        ) : (
-          agenda!.tomorrow.slice(0, 5).map((item) => (
-            <Text key={item.id} style={styles.bullet}>
-              · {item.label}
-            </Text>
-          ))
-        )}
-      </View>
-
-      <Text style={styles.section}>My Week</Text>
-      <Link href="/digest/weekly" asChild>
-        <Pressable style={styles.tile}>
-          {(agenda?.week ?? []).slice(0, 5).map((item) => (
-            <Text key={item.id} style={styles.bullet}>
-              · {item.label}
-            </Text>
-          ))}
-          <Text style={styles.tileCta}>Open Weekly Overview →</Text>
-        </Pressable>
-      </Link>
-
-      <Text style={styles.section}>811 · Connection & Info</Text>
-      <Pressable style={styles.primary} onPress={() => setShow811Picker(true)}>
-        <Text style={styles.primaryText}>Prepare an 811 call</Text>
+      <SectionHeadingLink
+        label="Symptom Checker"
+        onPress={() => setShowSymptomPicker(true)}
+      />
+      <Pressable
+        style={styles.primary}
+        onPress={() => setShowSymptomPicker(true)}
+      >
         <Text style={styles.primarySub}>
-          Choose who it’s for, then open the caregiver script
+          Life-threatening check first → then 811 call prep when needed
         </Text>
       </Pressable>
 
@@ -183,23 +323,23 @@ export default function HomeScreen() {
       </Link>
 
       <Modal
-        visible={show811Picker}
+        visible={showSymptomPicker}
         transparent
         animationType="fade"
-        onRequestClose={() => setShow811Picker(false)}
+        onRequestClose={() => setShowSymptomPicker(false)}
       >
         <Pressable
           style={styles.modalBackdrop}
-          onPress={() => setShow811Picker(false)}
+          onPress={() => setShowSymptomPicker(false)}
         >
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Who is this 811 call for?</Text>
+            <Text style={styles.modalTitle}>Who are these symptoms for?</Text>
             {pickerPeople.map((p) => (
               <Pressable
                 key={p.patientId}
                 style={styles.modalRow}
                 onPress={() => {
-                  setShow811Picker(false);
+                  setShowSymptomPicker(false);
                   router.push(`/patient/${p.patientId}/call811Prep`);
                 }}
               >
@@ -209,7 +349,7 @@ export default function HomeScreen() {
             ))}
             <Pressable
               style={styles.modalCancel}
-              onPress={() => setShow811Picker(false)}
+              onPress={() => setShowSymptomPicker(false)}
             >
               <Text style={styles.modalCancelText}>Cancel</Text>
             </Pressable>
@@ -221,7 +361,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, paddingBottom: 48, gap: 10 },
+  container: { padding: 20, paddingBottom: 48, gap: 8 },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -229,43 +369,93 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 12,
   },
-  brand: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0f3d3e',
-    letterSpacing: -0.5,
-  },
   heading: { fontSize: 22, fontWeight: '700', color: '#0f3d3e' },
-  lede: { fontSize: 15, color: '#355556', lineHeight: 21, marginBottom: 4 },
+  disclaimer: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b4f1d',
+    backgroundColor: '#f7f0dd',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    overflow: 'hidden',
+    lineHeight: 17,
+  },
   meta: { fontSize: 13, color: '#5a7374' },
   section: {
-    marginTop: 10,
+    marginTop: 8,
     fontSize: 12,
     fontWeight: '700',
     color: '#5a7374',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
+  sectionHit: { marginTop: 8, alignSelf: 'flex-start' },
+  sectionLink: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1d5c5e',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    textDecorationLine: 'underline',
+  },
   tile: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#d5e2e2',
-    gap: 6,
-  },
-  tileMuted: {
-    backgroundColor: '#eef4f4',
-    borderRadius: 12,
-    padding: 16,
     gap: 4,
   },
-  tileTitle: { fontSize: 18, fontWeight: '700', color: '#0f3d3e' },
+  tileCompact: {
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#d5e2e2',
+    gap: 2,
+  },
   tileBody: { fontSize: 14, color: '#355556', lineHeight: 20 },
-  tileCta: { marginTop: 6, fontSize: 13, fontWeight: '600', color: '#1d5c5e' },
-  checkLine: { fontSize: 14, color: '#143536', lineHeight: 20 },
+  todayMeta: {
+    fontSize: 11,
+    color: '#5a7374',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  mirrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  mirrorTick: {
+    width: 14,
+    fontSize: 13,
+    color: '#0f3d3e',
+    fontWeight: '700',
+  },
+  mirrorTickDone: { color: '#5a7374' },
+  mirrorLabel: { flex: 1, fontSize: 13, color: '#143536', lineHeight: 18 },
+  mirrorLabelDone: {
+    color: '#8aa0a0',
+    textDecorationLine: 'line-through',
+  },
+  moreHint: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1d5c5e',
+  },
   bullet: { fontSize: 14, color: '#143536', lineHeight: 20 },
-  familyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  weekGroup: { marginTop: 4, gap: 2 },
+  weekGroupTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#5a7374',
+    textTransform: 'uppercase',
+  },
+  familyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   miniTile: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
@@ -275,16 +465,26 @@ const styles = StyleSheet.create({
     borderColor: '#d5e2e2',
     minWidth: 100,
   },
+  miniTileCompact: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    minWidth: 72,
+  },
+  miniTileDense: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    minWidth: 56,
+    borderRadius: 8,
+  },
   miniNick: { fontSize: 17, fontWeight: '700', color: '#0f3d3e' },
+  miniNickDense: { fontSize: 14 },
   miniMeta: { marginTop: 2, fontSize: 12, color: '#5a7374' },
   primary: {
     backgroundColor: '#0f3d3e',
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    gap: 4,
   },
-  primaryText: { color: '#f4f7f5', fontWeight: '700', fontSize: 17 },
   primarySub: { color: '#c5d6d6', fontSize: 13, lineHeight: 18 },
   primaryBtn: {
     backgroundColor: '#0f3d3e',

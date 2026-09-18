@@ -59,4 +59,9 @@ export interface Triage811Output {
   questionsToAskNurse: [string, string, string];
   /** Explicit non-diagnostic disclaimer for UI surfaces. */
   regulatoryNotice: string;
+  /**
+   * Caregiver chose life-threatening-now flags — UI may offer tel:911 and
+   * Emergency Pass tools. Not a clinical disposition or acuity score.
+   */
+  offerEmergencyTools: boolean;
 }

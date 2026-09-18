@@ -1,7 +1,9 @@
 import {
   buildDispatcherCueSheet,
+  composeGuidedSymptoms,
   formatActiveMedications,
   generate811Script,
+  shouldOfferEmergencyTools,
   REGULATORY_NOTICE,
 } from '../services/triage811Engine';
 import { PATIENT_VAULT, getPatientVaultProfile } from '../data/patientVault';
@@ -38,6 +40,7 @@ describe('triage811Engine', () => {
     );
     expect(result.questionsToAskNurse).toHaveLength(3);
     expect(result.regulatoryNotice).toBe(REGULATORY_NOTICE);
+    expect(result.offerEmergencyTools).toBe(false);
     // SaMD: must not claim a diagnosis or prescribe
     expect(result.spokenIntroScript.toLowerCase()).not.toMatch(
       /you have|diagnosed with|take \d|prescribe|antibiotic course/,
@@ -110,6 +113,30 @@ describe('triage811Engine', () => {
     await expect(
       generate811Script('pt-missing', ['Mild fever']),
     ).rejects.toThrow(/Unknown patientId/i);
+  });
+
+  it('composes guided category symptoms and offers emergency tools only when flagged', async () => {
+    const symptoms = composeGuidedSymptoms({
+      categoryId: 'neuro',
+      followUps: ['Started in the last hour'],
+    });
+    expect(symptoms).toEqual(
+      expect.arrayContaining([
+        'Sudden onset confusion',
+        'Started in the last hour',
+      ]),
+    );
+    expect(shouldOfferEmergencyTools([])).toBe(false);
+    expect(
+      shouldOfferEmergencyTools(['I believe this is life-threatening right now']),
+    ).toBe(true);
+
+    const withFlag = await generate811Script('pt-7801', symptoms, {
+      emergencyFlags: ['Unconscious or cannot wake them'],
+    });
+    expect(withFlag.offerEmergencyTools).toBe(true);
+    expect(withFlag.dispatcherCueSheet).toHaveLength(4);
+    expect(withFlag.questionsToAskNurse).toHaveLength(3);
   });
 
   it('keeps vault profiles multi-generational for caregiver context', () => {

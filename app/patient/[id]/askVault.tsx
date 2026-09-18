@@ -12,7 +12,11 @@ import {
 } from 'react-native';
 import { listMedicalEventsForPatient } from '../../../db/medicalEvents';
 import { DEMO_CAREGIVER_ID } from '../../../data/caregiverHousehold';
-import { askMyVault, type AskVaultCitation } from '../../../services/askVault';
+import {
+  askMyVault,
+  formatBlufAnswer,
+  type AskVaultCitation,
+} from '../../../services/askVault';
 import { SBAR_REGULATORY_NOTICE } from '../../../services/sbarEngine';
 import { getVaultCryptoStatus } from '../../../services/vaultCrypto';
 
@@ -52,13 +56,15 @@ export default function AskVaultScreen() {
     }
   }
 
+  const bluf = answer ? formatBlufAnswer(answer) : null;
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.heading}>Ask my vault</Text>
       <Text style={styles.lede}>
-        Natural-language questions over confirmed vault events. Local Ollama when
-        available; offline SaMD-safe fallback otherwise. Not a diagnosis. Requires
-        an active READ_VAULT proxy grant (logged append-only).
+        Ask any question about this person’s medical information on file. Answers
+        lead with a Bottom Line Up Front, then detail. Local Ollama when
+        available; offline SaMD-safe fallback otherwise. Not a diagnosis.
       </Text>
       <Text style={styles.notice}>{SBAR_REGULATORY_NOTICE}</Text>
       {!vaultCrypto.configured ? (
@@ -70,7 +76,7 @@ export default function AskVaultScreen() {
         multiline
         value={question}
         onChangeText={setQuestion}
-        placeholder="Ask about labs, meds, or visit notes on file…"
+        placeholder="Ask about labs, meds, visits, or anything else in the vault…"
         placeholderTextColor="#6b7c7d"
       />
 
@@ -86,12 +92,18 @@ export default function AskVaultScreen() {
         )}
       </Pressable>
 
-      {answer ? (
+      {bluf ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
-            Answer{source ? ` · ${source}` : ''}
+            Bottom line{source ? ` · ${source}` : ''}
           </Text>
-          <Text style={styles.body}>{answer}</Text>
+          <Text style={styles.bluf}>{bluf.bluf}</Text>
+          {bluf.detail ? (
+            <>
+              <Text style={styles.detailLabel}>Details</Text>
+              <Text style={styles.body}>{bluf.detail}</Text>
+            </>
+          ) : null}
         </View>
       ) : null}
 
@@ -141,6 +153,19 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cardTitle: { fontSize: 15, fontWeight: '700', color: '#0f3d3e' },
+  bluf: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#143536',
+    lineHeight: 22,
+  },
+  detailLabel: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#5a7374',
+    textTransform: 'uppercase',
+  },
   body: { fontSize: 14, color: '#355556', lineHeight: 20 },
   cite: { fontSize: 12, color: '#6b7c7d', lineHeight: 17 },
 });

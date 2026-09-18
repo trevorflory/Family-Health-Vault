@@ -93,6 +93,16 @@ describe('digestEngine', () => {
     ).toBe(true);
   });
 
+  it('auto-generates caregiver prompts for same-day check-ins and prep', async () => {
+    const digest = await compileDailyDigest(DEMO_CAREGIVER_ID, NOW);
+    const dad = digest.sections.find((s) => s.dependant.patientId === 'pt-7801')!;
+    expect(dad.prompts.some((p) => p.kind === 'CHECK_IN_TODAY')).toBe(true);
+    expect(dad.prompts.some((p) => p.kind === 'PREP_VISIT')).toBe(true);
+    expect(
+      dad.prompts.some((p) => /Dr Patel|eye appointment/i.test(p.label)),
+    ).toBe(true);
+  });
+
   it('surfaces fixture FOI pending >30 days and missing lab uploads when vault empty', async () => {
     const digest = await compileDailyDigest(DEMO_CAREGIVER_ID, NOW);
     const dad = digest.sections.find((s) => s.dependant.patientId === 'pt-7801')!;
