@@ -8,8 +8,6 @@ import {
   StyleSheet,
   Text,
   View,
-  type StyleProp,
-  type ViewStyle,
 } from 'react-native';
 import {
   DEMO_CAREGIVER_ID,
@@ -175,11 +173,12 @@ export default function HomeScreen() {
   const familyDensity =
     family.length >= 6 ? 'dense' : family.length >= 4 ? 'compact' : 'roomy';
 
-  const familyTileStyle: StyleProp<ViewStyle> = StyleSheet.flatten([
-    styles.miniTile,
-    familyDensity === 'dense' && styles.miniTileDense,
-    familyDensity === 'compact' && styles.miniTileCompact,
-  ]);
+  const familyTileStyle =
+    familyDensity === 'dense'
+      ? styles.miniTileDenseMerged
+      : familyDensity === 'compact'
+        ? styles.miniTileCompactMerged
+        : styles.miniTile;
 
   const pickerPeople: DigestDependantRef[] = [
     {
@@ -236,27 +235,28 @@ export default function HomeScreen() {
       <SectionHeadingLink href="/family" label="My Family" />
       <View style={styles.familyRow}>
         {family.map((p) => (
-          <Link key={p.patientId} href={`/patient/${p.patientId}`} asChild>
-            <Pressable style={familyTileStyle}>
-              <Text
-                style={
-                  familyDensity === 'dense'
-                    ? StyleSheet.flatten([styles.miniNick, styles.miniNickDense])
-                    : styles.miniNick
-                }
-                numberOfLines={1}
-              >
-                {p.nickname}
+          <Pressable
+            key={p.patientId}
+            style={familyTileStyle}
+            accessibilityRole="link"
+            onPress={() => router.push(`/patient/${p.patientId}`)}
+          >
+            <Text
+              style={
+                familyDensity === 'dense' ? styles.miniNickDenseMerged : styles.miniNick
+              }
+              numberOfLines={1}
+            >
+              {p.nickname}
+            </Text>
+            {familyDensity === 'roomy' ? (
+              <Text style={styles.miniMeta}>
+                {p.ageYears}y · {p.city}
               </Text>
-              {familyDensity === 'roomy' ? (
-                <Text style={styles.miniMeta}>
-                  {p.ageYears}y · {p.city}
-                </Text>
-              ) : familyDensity === 'compact' ? (
-                <Text style={styles.miniMeta}>{p.ageYears}y</Text>
-              ) : null}
-            </Pressable>
-          </Link>
+            ) : familyDensity === 'compact' ? (
+              <Text style={styles.miniMeta}>{p.ageYears}y</Text>
+            ) : null}
+          </Pressable>
         ))}
       </View>
 
@@ -465,19 +465,30 @@ const styles = StyleSheet.create({
     borderColor: '#d5e2e2',
     minWidth: 100,
   },
-  miniTileCompact: {
+  miniTileCompactMerged: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#d5e2e2',
     minWidth: 72,
   },
-  miniTileDense: {
+  miniTileDenseMerged: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#d5e2e2',
     minWidth: 56,
-    borderRadius: 8,
   },
   miniNick: { fontSize: 17, fontWeight: '700', color: '#0f3d3e' },
-  miniNickDense: { fontSize: 14 },
+  miniNickDenseMerged: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f3d3e',
+  },
   miniMeta: { marginTop: 2, fontSize: 12, color: '#5a7374' },
   primary: {
     backgroundColor: '#0f3d3e',
