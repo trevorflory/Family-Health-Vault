@@ -24,6 +24,9 @@ export interface PatientVaultProfile {
   ageYears: number;
   sex: BiologicalSex;
   relationshipLabel: string; // e.g. "father", "mother", "spouse", "child"
+  /** Optional anthropometrics for caregiver story tiles (not clinical vitals). */
+  heightCm?: number;
+  weightKg?: number;
   chronicConditions: string[];
   /** Active medications; entries may omit dose/frequency. */
   activeMedications: Array<MedicationRecord | null | undefined>;
@@ -56,4 +59,9 @@ export interface Triage811Output {
   questionsToAskNurse: [string, string, string];
   /** Explicit non-diagnostic disclaimer for UI surfaces. */
   regulatoryNotice: string;
+  /**
+   * Caregiver chose life-threatening-now flags — UI may offer tel:911 and
+   * Emergency Pass tools. Not a clinical disposition or acuity score.
+   */
+  offerEmergencyTools: boolean;
 }

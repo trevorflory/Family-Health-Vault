@@ -27,6 +27,85 @@ export const ACUTE_SYMPTOM_OPTIONS = [
   'Worsening cough',
 ] as const;
 
+/** Guided Symptom Checker categories → follow-up chips (script branching only). */
+export const SYMPTOM_GUIDE_CATEGORIES = [
+  {
+    id: 'neuro',
+    label: 'Confusion / speech / fall',
+    seeds: ['Sudden onset confusion', 'Difficulty speaking', 'Fall with possible injury'],
+    followUps: [
+      'Started in the last hour',
+      'Face droop or one-sided weakness noticed',
+      'Hit head during fall',
+    ],
+  },
+  {
+    id: 'cardio_resp',
+    label: 'Chest / breathing',
+    seeds: ['Chest pain or pressure', 'Shortness of breath', 'Worsening cough'],
+    followUps: [
+      'Pain with exertion',
+      'Wheeze or inhaler used today',
+      'Lips or fingertips look blue to you',
+    ],
+  },
+  {
+    id: 'fever_gi',
+    label: 'Fever / stomach',
+    seeds: ['Mild fever', 'High fever', 'Persistent vomiting', 'Abdominal pain'],
+    followUps: [
+      'Unable to keep fluids down',
+      'Fever over 24 hours',
+      'Blood in vomit or stool (as observed)',
+    ],
+  },
+  {
+    id: 'other',
+    label: 'Other acute concerns',
+    seeds: [
+      'Severe headache',
+      'Uncontrolled bleeding',
+      'New rash',
+      'Reduced urine output',
+    ],
+    followUps: [
+      'Getting worse over the last few hours',
+      'New medication started this week',
+      'Caregiver is alone and needs coaching',
+    ],
+  },
+] as const;
+
+/**
+ * Caregiver-selected “happening right now” flags that unlock 911 dialer +
+ * Emergency Pass tools — not a triage verdict.
+ */
+export const EMERGENCY_NOW_FLAGS = [
+  'Not breathing / turning blue (as I see it)',
+  'Unconscious or cannot wake them',
+  'Uncontrolled bleeding I cannot stop',
+  'Seizure lasting more than a few minutes',
+  'I believe this is life-threatening right now',
+] as const;
+
+export function composeGuidedSymptoms(input: {
+  categoryId: string;
+  followUps: string[];
+  extraSymptoms?: string[];
+}): string[] {
+  const cat = SYMPTOM_GUIDE_CATEGORIES.find((c) => c.id === input.categoryId);
+  const seeds = cat ? [...cat.seeds] : [];
+  const follow = input.followUps.map((s) => s.trim()).filter(Boolean);
+  const extra = (input.extraSymptoms ?? []).map((s) => s.trim()).filter(Boolean);
+  return [...new Set([...seeds, ...follow, ...extra])];
+}
+
+export function shouldOfferEmergencyTools(
+  emergencyFlags: string[] | null | undefined,
+): boolean {
+  return (emergencyFlags ?? []).some((f) => f.trim().length > 0);
+}
+
 function sexPhrase(sex: PatientVaultProfile['sex']): string {
   switch (sex) {
     case 'female':
@@ -232,6 +311,7 @@ export function buildQuestionsToAskNurse(
 export async function generate811Script(
   patientId: string,
   currentSymptoms: string[],
+  options?: { emergencyFlags?: string[] },
 ): Promise<Triage811Output> {
   const profile = getPatientVaultProfile(patientId);
   if (!profile) {
@@ -248,5 +328,6 @@ export async function generate811Script(
     historicalRedFlags: deriveHistoricalRedFlags(profile, symptoms),
     questionsToAskNurse: buildQuestionsToAskNurse(profile, symptoms),
     regulatoryNotice: REGULATORY_NOTICE,
+    offerEmergencyTools: shouldOfferEmergencyTools(options?.emergencyFlags),
   };
 }

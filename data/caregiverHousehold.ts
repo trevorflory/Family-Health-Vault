@@ -1,4 +1,5 @@
 import type {
+  CaregiverTodo,
   DigestAppointment,
   DigestDependantRef,
   DigestMedicationDue,
@@ -23,6 +24,7 @@ export interface CaregiverHousehold {
   caregiverId: string;
   caregiverName: string;
   dependants: HouseholdDependantSchedule[];
+  caregiverTodos: CaregiverTodo[];
 }
 
 /**
@@ -30,6 +32,9 @@ export interface CaregiverHousehold {
  * Dates are relative helpers resolved against "today" in the digest engine.
  */
 export const DEMO_CAREGIVER_ID = 'cg-sandwich-01';
+export const DEMO_SELF_ID = 'pt-self-01';
+export const DEMO_DAD_ID = 'pt-7801';
+export const DEMO_CHILD_ID = 'pt-leo-04';
 
 function localDateKey(d: Date): string {
   const y = d.getFullYear();
@@ -73,8 +78,9 @@ export function buildHouseholdForNow(
 
   const dad: HouseholdDependantSchedule = {
     dependant: {
-      patientId: 'pt-7801',
+      patientId: DEMO_DAD_ID,
       displayName: 'Dad (78) - Saskatoon',
+      nickname: 'Dad',
       role: 'aging_parent',
       ageYears: 78,
       city: 'Saskatoon',
@@ -103,6 +109,22 @@ export function buildHouseholdForNow(
           given: false,
         },
       ],
+      [tomorrow]: [
+        {
+          medicationId: 'med-met-am-tm',
+          name: 'Metformin',
+          dose: '500mg',
+          scheduledTime: '08:00',
+          given: false,
+        },
+        {
+          medicationId: 'med-ram-am-tm',
+          name: 'Ramipril',
+          dose: '5mg',
+          scheduledTime: '08:00',
+          given: false,
+        },
+      ],
     },
     appointments: [
       {
@@ -111,6 +133,17 @@ export function buildHouseholdForNow(
         startsAt: isoDateTimeOffset(now, 2, 10, 30),
         location: 'Saskatoon City Hospital',
         preparationAlert: `Print SBAR note for Dad's visit on ${weekdayName(isoDateTimeOffset(now, 2, 10, 30))}`,
+        clinicianName: 'Dr B',
+        source: 'VAULT',
+      },
+      {
+        appointmentId: 'appt-dad-eye',
+        title: "Dad's eye appointment",
+        startsAt: isoDateTimeOffset(now, 0, 14, 0),
+        location: 'Saskatoon Vision Clinic',
+        preparationAlert: 'Bring current glasses and medication list',
+        clinicianName: 'Dr Patel',
+        source: 'VAULT',
       },
     ],
     overdueTasks: [
@@ -128,7 +161,7 @@ export function buildHouseholdForNow(
       },
     ],
     adherenceLast7Days: {
-      patientId: 'pt-7801',
+      patientId: DEMO_DAD_ID,
       displayName: 'Dad (78) - Saskatoon',
       dosesScheduled: 21,
       dosesTaken: 18,
@@ -156,13 +189,13 @@ export function buildHouseholdForNow(
     ],
     weekSchedule: [
       {
-        patientId: 'pt-7801',
+        patientId: DEMO_DAD_ID,
         displayName: 'Dad (78) - Saskatoon',
         title: 'Nephrology follow-up',
         startsAt: isoDateTimeOffset(now, 2, 10, 30),
       },
       {
-        patientId: 'pt-7801',
+        patientId: DEMO_DAD_ID,
         displayName: 'Dad (78) - Saskatoon',
         title: 'Pharmacy refill pickup',
         startsAt: isoDateTimeOffset(now, 5, 15, 0),
@@ -172,8 +205,9 @@ export function buildHouseholdForNow(
 
   const leo: HouseholdDependantSchedule = {
     dependant: {
-      patientId: 'pt-leo-04',
+      patientId: DEMO_CHILD_ID,
       displayName: 'Leo (4) - Regina',
+      nickname: 'Leo',
       role: 'child',
       ageYears: 4,
       city: 'Regina',
@@ -197,10 +231,17 @@ export function buildHouseholdForNow(
         location: 'Regina Primary Care',
         preparationAlert: 'Pack immunization booklet for Leo tomorrow afternoon',
       },
+      {
+        appointmentId: 'appt-leo-school-imm',
+        title: 'Leo grade immunization at school',
+        startsAt: isoDateTimeOffset(now, 0, 10, 30),
+        location: 'School clinic',
+        preparationAlert: 'Consent form already on file — check school portal tonight',
+      },
     ],
     overdueTasks: [],
     adherenceLast7Days: {
-      patientId: 'pt-leo-04',
+      patientId: DEMO_CHILD_ID,
       displayName: 'Leo (4) - Regina',
       dosesScheduled: 7,
       dosesTaken: 7,
@@ -222,7 +263,7 @@ export function buildHouseholdForNow(
     ],
     weekSchedule: [
       {
-        patientId: 'pt-leo-04',
+        patientId: DEMO_CHILD_ID,
         displayName: 'Leo (4) - Regina',
         title: 'Well-child visit',
         startsAt: isoDateTimeOffset(now, 1, 14, 0),
@@ -232,8 +273,9 @@ export function buildHouseholdForNow(
 
   const self: HouseholdDependantSchedule = {
     dependant: {
-      patientId: 'pt-self-01',
+      patientId: DEMO_SELF_ID,
       displayName: 'You (42) - Regina',
+      nickname: 'Myself',
       role: 'self',
       ageYears: 42,
       city: 'Regina',
@@ -268,7 +310,7 @@ export function buildHouseholdForNow(
       },
     ],
     adherenceLast7Days: {
-      patientId: 'pt-self-01',
+      patientId: DEMO_SELF_ID,
       displayName: 'You (42) - Regina',
       dosesScheduled: 7,
       dosesTaken: 5,
@@ -290,7 +332,7 @@ export function buildHouseholdForNow(
     ],
     weekSchedule: [
       {
-        patientId: 'pt-self-01',
+        patientId: DEMO_SELF_ID,
         displayName: 'You (42) - Regina',
         title: 'Physio for caregiver back strain',
         startsAt: isoDateTimeOffset(now, 4, 17, 30),
@@ -298,10 +340,39 @@ export function buildHouseholdForNow(
     ],
   };
 
+  const caregiverTodos: CaregiverTodo[] = [
+    {
+      todoId: 'todo-book-dad-gp',
+      label: 'Book follow-up appointment for Dad after nephrology',
+      patientId: DEMO_DAD_ID,
+      dueDateKey: isoDateOffset(now, 3),
+    },
+    {
+      todoId: 'todo-refill-leo',
+      label: 'Refill multivitamin for Leo',
+      patientId: DEMO_CHILD_ID,
+      dueDateKey: isoDateOffset(now, 4),
+    },
+    {
+      todoId: 'todo-lipid-self',
+      label: 'Upload fasting lipid panel for Myself',
+      patientId: DEMO_SELF_ID,
+      dueDateKey: isoDateOffset(now, 2),
+    },
+    {
+      todoId: 'todo-foi-dad',
+      label: 'Finish SHA FOI package for Dad',
+      patientId: DEMO_DAD_ID,
+      dueDateKey: isoDateOffset(now, 1),
+    },
+  ];
+
   return {
     caregiverId,
     caregiverName: 'Alex Ellis',
-    dependants: [dad, leo, self],
+    // Self first for caregiver-home / daily Myself-first ordering
+    dependants: [self, dad, leo],
+    caregiverTodos,
   };
 }
 
