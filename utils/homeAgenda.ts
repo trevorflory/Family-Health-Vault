@@ -176,6 +176,10 @@ export function buildHomeAgenda(
     const when = t.dueDateKey
       ? `${t.dueDateKey} · `
       : '';
+    const nick =
+      household?.dependants.find((d) => d.dependant.patientId === t.patientId)
+        ?.dependant.nickname ??
+      (t.patientId === 'pt-self-01' ? 'Myself' : undefined);
     pushWeek({
       id: `todo-${t.todoId}`,
       kind: 'task',
@@ -183,6 +187,7 @@ export function buildHomeAgenda(
       done: agendaDone.has(`todo-${t.todoId}`),
       priority: t.dueDateKey && t.dueDateKey < localDateKey(now) ? 0 : 1,
       patientId: t.patientId,
+      nickname: nick,
       href: t.href,
     });
   }
