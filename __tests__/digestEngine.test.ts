@@ -61,7 +61,15 @@ describe('digestEngine', () => {
     expect(names).toContain('Leo (4) - Regina');
     expect(names).toContain('You (42) - Regina');
     expect(digest.sections.map((s) => s.dependant.role).sort()).toEqual(
-      ['aging_parent', 'child', 'self'].sort(),
+      [
+        'aging_parent',
+        'aging_parent',
+        'child',
+        'child',
+        'child',
+        'child',
+        'self',
+      ].sort(),
     );
     expect(digest.sections[0].dependant.role).toBe('self');
     expect(digest.sections[0].dependant.nickname).toBe('Myself');
@@ -149,27 +157,31 @@ describe('digestEngine', () => {
   it('compileWeeklyDigest synthesizes adherence, vitals, and upcoming week', async () => {
     const weekly = await compileWeeklyDigest(DEMO_CAREGIVER_ID, NOW);
     expect(weekly.weekOf).toBe('2026-09-14');
-    expect(weekly.adherence.length).toBe(3);
+    expect(weekly.adherence.length).toBe(7);
     expect(weekly.vitalTrends.length).toBeGreaterThan(0);
     expect(weekly.upcomingWeek.length).toBeGreaterThan(0);
     expect(weekly.narrativeSummary).toMatch(/adherence/i);
   });
 
-  it('bumps weekly adherence when med-dose marks exist', async () => {
+  it('bumps weekly adherence when prior-day med-dose marks exist (excludes today)', async () => {
     const weekly = await compileWeeklyDigest(DEMO_CAREGIVER_ID, NOW, {
-      listMedDosesGivenBetween: async (patientId) =>
-        patientId === 'pt-7801'
+      listMedDosesGivenBetween: async (patientId, fromKey, toKey) => {
+        expect(toKey).toBe('2026-09-13');
+        expect(fromKey).toBe('2026-09-07');
+        return patientId === 'pt-7801'
           ? [
               { medicationId: 'med-met-am', dateKey: '2026-09-14' },
               { medicationId: 'med-ram-am', dateKey: '2026-09-14' },
               { medicationId: 'med-met-pm', dateKey: '2026-09-14' },
               { medicationId: 'med-met-am', dateKey: '2026-09-13' },
             ]
-          : [],
+          : [];
+      },
     });
     const dad = weekly.adherence.find((a) => a.patientId === 'pt-7801')!;
-    expect(dad.dosesTaken).toBe(21);
-    expect(dad.adherenceRate).toBe(1);
+    // Fixture base 18/21 + one prior-day mark (today's marks ignored by window)
+    expect(dad.dosesTaken).toBe(19);
+    expect(dad.adherenceRate).toBeCloseTo(19 / 21);
   });
 
   it('includes rolling next-7-day window and caregiver to-dos', async () => {

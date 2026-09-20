@@ -57,6 +57,25 @@ export const PATIENT_VAULT: Record<string, PatientVaultProfile> = {
       'Baseline mild confusion reported by family on busy days',
     ],
   },
+  'pt-mom-76': {
+    patientId: 'pt-mom-76',
+    fullName: 'Helen Ellis',
+    preferredName: 'Helen',
+    ageYears: 76,
+    sex: 'female',
+    relationshipLabel: 'mother',
+    heightCm: 162,
+    weightKg: 68,
+    chronicConditions: ['Hypertension', 'Osteoarthritis'],
+    activeMedications: [
+      { name: 'Amlodipine', dose: '5mg', frequency: 'daily' },
+      { name: 'Ibuprofen', dose: '200mg', frequency: 'as needed' },
+    ],
+    recentEvents: ['Cardiology referral pending BP log review'],
+    historicalMarkers: [
+      'History of orthostatic dizziness; stand slowly after sitting',
+    ],
+  },
   'pt-leo-04': {
     patientId: 'pt-leo-04',
     fullName: 'Leo Ellis',
@@ -83,12 +102,45 @@ export const PATIENT_VAULT: Record<string, PatientVaultProfile> = {
   'pt-child-09': {
     patientId: 'pt-child-09',
     fullName: 'Mia Ellis',
+    preferredName: 'Mia',
     ageYears: 9,
     sex: 'female',
     relationshipLabel: 'daughter',
+    heightCm: 135,
+    weightKg: 30,
     chronicConditions: [],
     activeMedications: [],
-    recentEvents: ['Completed childhood vaccinations on schedule'],
+    recentEvents: ['Dental cleaning booked', 'Completed childhood vaccinations on schedule'],
+    historicalMarkers: ['No known drug allergies on file'],
+  },
+  'pt-sam-07': {
+    patientId: 'pt-sam-07',
+    fullName: 'Sam Ellis',
+    preferredName: 'Sam',
+    ageYears: 7,
+    sex: 'male',
+    relationshipLabel: 'son',
+    heightCm: 122,
+    weightKg: 24,
+    chronicConditions: ['Mild intermittent asthma'],
+    activeMedications: [
+      { name: 'Salbutamol inhaler', dose: '2 puffs', frequency: 'as needed / morning review' },
+    ],
+    recentEvents: ['Asthma action plan reviewed at school'],
+    historicalMarkers: ['Prior wheeze with colds — caregiver carries inhaler'],
+  },
+  'pt-nora-11': {
+    patientId: 'pt-nora-11',
+    fullName: 'Nora Ellis',
+    preferredName: 'Nora',
+    ageYears: 11,
+    sex: 'female',
+    relationshipLabel: 'daughter',
+    heightCm: 148,
+    weightKg: 40,
+    chronicConditions: [],
+    activeMedications: [],
+    recentEvents: ['School sports physical form outstanding'],
     historicalMarkers: ['No known drug allergies on file'],
   },
   'pt-self-01': {
@@ -107,11 +159,10 @@ export const PATIENT_VAULT: Record<string, PatientVaultProfile> = {
     ],
     recentEvents: ['Missing fasting lipid panel upload (self-care backlog)'],
     historicalMarkers: [
-      'Sandwich caregiver — managing aging parent and young child concurrently',
+      'Sandwich caregiver — managing aging parents and several kids concurrently',
     ],
   },
 };
-
 export function getPatientVaultProfile(
   patientId: string,
 ): PatientVaultProfile | undefined {

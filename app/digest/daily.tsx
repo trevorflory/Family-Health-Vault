@@ -99,6 +99,18 @@ function PersonSection({
   const hasAppt = section.appointmentsWithin72h.length > 0;
   const hasFoi = section.overdueTasks.some((t) => t.kind === 'FOI_PENDING');
   const handovers = section.recentHandovers ?? [];
+  const apptIds = new Set(
+    section.appointmentsWithin72h.map((a) => a.appointmentId),
+  );
+  /** Prep lives under the appointment card — don't repeat in Prompts. */
+  const promptsSansPrep = section.prompts.filter(
+    (p) =>
+      !(
+        p.kind === 'PREP_VISIT' &&
+        p.appointmentId &&
+        apptIds.has(p.appointmentId)
+      ),
+  );
 
   return (
     <View style={styles.card}>
@@ -129,36 +141,53 @@ function PersonSection({
       </View>
 
       <View style={styles.block}>
-        <Text style={styles.sectionLabel}>Appointments</Text>
+        <Text style={styles.sectionLabel}>Appointments & prep</Text>
         {section.appointmentsWithin72h.length === 0 ? (
           <Text style={styles.meta}>No visits in the next 72 hours</Text>
         ) : (
-          section.appointmentsWithin72h.map((a) => (
-            <View key={a.appointmentId} style={styles.apptBlock}>
-              <Text style={styles.line}>{a.title}</Text>
-              {a.clinicianName ? (
-                <Text style={styles.meta}>{a.clinicianName}</Text>
-              ) : null}
-              <Text style={styles.meta}>
-                {new Date(a.startsAt).toLocaleString('en-CA', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })}
-              </Text>
-            </View>
-          ))
+          section.appointmentsWithin72h.map((a) => {
+            const prep = section.prompts.find(
+              (p) =>
+                p.kind === 'PREP_VISIT' && p.appointmentId === a.appointmentId,
+            );
+            const prepId = prep ? `prompt-${prep.promptId}` : null;
+            return (
+              <View key={a.appointmentId} style={styles.apptBlock}>
+                <Text style={styles.line}>{a.title}</Text>
+                {a.clinicianName ? (
+                  <Text style={styles.meta}>{a.clinicianName}</Text>
+                ) : null}
+                <Text style={styles.meta}>
+                  {new Date(a.startsAt).toLocaleString('en-CA', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </Text>
+                {prep && prepId ? (
+                  <AgendaCheckRow
+                    label={prep.label}
+                    done={agendaDone.has(prepId)}
+                    href={prep.href}
+                    onToggle={() =>
+                      onToggleAgenda(prepId, !agendaDone.has(prepId))
+                    }
+                  />
+                ) : null}
+              </View>
+            );
+          })
         )}
       </View>
 
       <View style={styles.block}>
-        <Text style={styles.sectionLabel}>Prompts & prep to-dos</Text>
-        {section.prompts.length === 0 ? (
-          <Text style={styles.meta}>No appointment prompts right now</Text>
+        <Text style={styles.sectionLabel}>Check-ins & follow-ups</Text>
+        {promptsSansPrep.length === 0 ? (
+          <Text style={styles.meta}>No other prompts right now</Text>
         ) : (
-          section.prompts.map((p) => {
+          promptsSansPrep.map((p) => {
             const id = `prompt-${p.promptId}`;
             return (
               <AgendaCheckRow
@@ -172,7 +201,6 @@ function PersonSection({
           })
         )}
       </View>
-
       <View style={styles.block}>
         <Text style={styles.sectionLabel}>To-dos</Text>
         {section.overdueTasks.length === 0 ? (

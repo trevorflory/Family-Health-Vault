@@ -32,6 +32,11 @@ export interface VaultSyncContract {
 export function createVaultSyncStub(
   region: CanadianSyncRegion = 'northamerica-northeast1',
 ): VaultSyncContract {
+  if (region !== 'northamerica-northeast1') {
+    throw new Error(
+      `Vault sync region must be northamerica-northeast1 (GCP Montreal); got ${region}`,
+    );
+  }
   return {
     region,
     async pushEncrypted() {

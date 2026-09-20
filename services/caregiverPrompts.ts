@@ -121,7 +121,7 @@ export function generateCaregiverPrompts(input: {
           nickname: nick,
           appointmentId: appt.appointmentId,
           dueAt: appt.startsAt,
-          href: `/patient/${input.dependant.patientId}/sbarExport`,
+          href: `/patient/${input.dependant.patientId}/appointmentPrep?appointmentId=${appt.appointmentId}`,
           priority: 10,
         });
       }

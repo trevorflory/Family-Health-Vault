@@ -23,6 +23,7 @@ export type MedicalEventSourceType =
   | 'FHIR'
   | 'CCD'
   | 'FILE_IMPORT'
+  | 'EHR_LTC'
   | 'MANUAL';
 
 export interface InteropPullResult {

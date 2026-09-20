@@ -4,6 +4,7 @@ import {
 } from './webSessionMap';
 
 export interface VisitGoalDraft {
+  patientId: string;
   appointmentId: string;
   goalsText: string;
   updatedAt: string;
@@ -33,6 +34,7 @@ export async function setVisitGoals(input: {
   goalsText: string;
 }): Promise<VisitGoalDraft> {
   const draft: VisitGoalDraft = {
+    patientId: input.patientId,
     appointmentId: input.appointmentId,
     goalsText: input.goalsText.trim(),
     updatedAt: new Date().toISOString(),
@@ -40,4 +42,10 @@ export async function setVisitGoals(input: {
   memoryStore.set(key(input.patientId, input.appointmentId), draft);
   persist();
   return draft;
+}
+
+export async function listVisitGoals(): Promise<VisitGoalDraft[]> {
+  return [...memoryStore.values()].sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  );
 }

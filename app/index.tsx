@@ -17,6 +17,10 @@ import {
 import { getPatientVaultProfile } from '../data/patientVault';
 import { listAgendaItemsDone } from '../db/agendaMarks';
 import {
+  getMostRecentCaregiverAdvice,
+  type CaregiverAdviceSnippet,
+} from '../services/caregiverAdvice';
+import {
   compileDailyDigest,
   compileWeeklyDigest,
   createLiveDigestLoaders,
@@ -34,25 +38,6 @@ function localDateKey(d: Date = new Date()): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-}
-
-const TODAY_PREVIEW = 4;
-
-/** Read-only tick mirror (1B) — checking happens on Daily. */
-function TodayMirrorRow({ item }: { item: HomeAgendaItem }) {
-  return (
-    <View style={styles.mirrorRow} accessibilityRole="text">
-      <Text style={[styles.mirrorTick, item.done && styles.mirrorTickDone]}>
-        {item.done ? '✓' : '○'}
-      </Text>
-      <Text
-        style={[styles.mirrorLabel, item.done && styles.mirrorLabelDone]}
-        numberOfLines={1}
-      >
-        {item.label}
-      </Text>
-    </View>
-  );
 }
 
 function SectionHeadingLink({
@@ -112,6 +97,8 @@ export default function HomeScreen() {
   const [story, setStory] = useState('');
   const [family, setFamily] = useState<DigestDependantRef[]>([]);
   const [agenda, setAgenda] = useState<HomeAgenda | null>(null);
+  const [recentAdvice, setRecentAdvice] =
+    useState<CaregiverAdviceSnippet | null>(null);
   const [showSymptomPicker, setShowSymptomPicker] = useState(false);
 
   const load = useCallback(async () => {
@@ -121,10 +108,11 @@ export default function HomeScreen() {
       const now = new Date();
       const dateKey = localDateKey(now);
       const loaders = createLiveDigestLoaders();
-      const [daily, weekly, agendaDoneIds] = await Promise.all([
+      const [daily, weekly, agendaDoneIds, advice] = await Promise.all([
         compileDailyDigest(DEMO_CAREGIVER_ID, now, loaders),
         compileWeeklyDigest(DEMO_CAREGIVER_ID, now, loaders),
         listAgendaItemsDone(dateKey),
+        getMostRecentCaregiverAdvice({ caregiverId: DEMO_CAREGIVER_ID, now }),
       ]);
       const selfVault = getPatientVaultProfile(DEMO_SELF_ID);
       setStory(
@@ -139,6 +127,7 @@ export default function HomeScreen() {
           .filter((d) => d.role !== 'self'),
       );
       setAgenda(buildHomeAgenda(daily, weekly, now, { agendaDoneIds }));
+      setRecentAdvice(advice);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load home');
     } finally {
@@ -152,18 +141,38 @@ export default function HomeScreen() {
     }, [load]),
   );
 
-  const todayPreview = useMemo(() => {
+  const todayList = useMemo(() => {
     const items = agenda?.today ?? [];
     const open = items.filter((i) => !i.done);
     const done = items.filter((i) => i.done);
     const ordered = [...open, ...done];
+    const rows: {
+      id: string;
+      label: string;
+      done: boolean;
+      href?: string;
+    }[] = [];
+    if (recentAdvice) {
+      rows.push({
+        id: `advice-${recentAdvice.updatedAt}`,
+        label: `${recentAdvice.nickname}: ${recentAdvice.text}`,
+        done: false,
+        href: recentAdvice.href,
+      });
+    }
+    for (const item of ordered) {
+      rows.push({
+        id: item.id,
+        label: item.label,
+        done: item.done,
+        href: item.href,
+      });
+    }
     return {
-      shown: ordered.slice(0, TODAY_PREVIEW),
-      more: Math.max(0, ordered.length - TODAY_PREVIEW),
-      total: ordered.length,
-      openCount: open.length,
+      shown: rows.slice(0, 5),
+      more: Math.max(0, rows.length - 5),
     };
-  }, [agenda]);
+  }, [agenda, recentAdvice]);
 
   const weekGroups = useMemo(() => {
     const open = (agenda?.week ?? []).filter((i) => !i.done);
@@ -233,54 +242,81 @@ export default function HomeScreen() {
       </Link>
 
       <SectionHeadingLink href="/family" label="My Family" />
-      <View style={styles.familyRow}>
-        {family.map((p) => (
-          <Pressable
-            key={p.patientId}
-            style={familyTileStyle}
-            accessibilityRole="link"
-            onPress={() => router.push(`/patient/${p.patientId}`)}
-          >
-            <Text
-              style={
-                familyDensity === 'dense' ? styles.miniNickDenseMerged : styles.miniNick
-              }
-              numberOfLines={1}
-            >
-              {p.nickname}
-            </Text>
-            {familyDensity === 'roomy' ? (
-              <Text style={styles.miniMeta}>
-                {p.ageYears}y · {p.city}
-              </Text>
-            ) : familyDensity === 'compact' ? (
-              <Text style={styles.miniMeta}>{p.ageYears}y</Text>
-            ) : null}
-          </Pressable>
-        ))}
-      </View>
-
-      <SectionHeadingLink href="/digest/daily" label="Today" />
-      <Link href="/digest/daily" asChild>
-        <Pressable style={styles.tileCompact} accessibilityRole="link">
-          {todayPreview.total === 0 ? (
-            <Text style={styles.tileBody}>Nothing queued for today.</Text>
-          ) : (
-            <>
-              <Text style={styles.todayMeta}>
-                {todayPreview.openCount} open · priority order · check off on
-                Daily
-              </Text>
-              {todayPreview.shown.map((item) => (
-                <TodayMirrorRow key={item.id} item={item} />
-              ))}
-              {todayPreview.more > 0 ? (
-                <Text style={styles.moreHint}>+{todayPreview.more} more</Text>
-              ) : null}
-            </>
-          )}
+      <Link href="/family-feed" asChild>
+        <Pressable style={styles.quickLink}>
+          <Text style={styles.quickLinkText}>
+            LTC facility feed (EHR read-only) →
+          </Text>
         </Pressable>
       </Link>
+      {family.length >= 4 ? (
+        <Link href="/family" asChild>
+          <Pressable style={styles.tile} accessibilityRole="link">
+            <Text style={styles.tileBody}>
+              {family.length} people — open roster for everyone (avoids cluttering
+              Home)
+            </Text>
+          </Pressable>
+        </Link>
+      ) : (
+        <View style={styles.familyRow}>
+          {family.map((p) => (
+            <Pressable
+              key={p.patientId}
+              style={familyTileStyle}
+              accessibilityRole="link"
+              onPress={() => router.push(`/patient/${p.patientId}`)}
+            >
+              <Text
+                style={
+                  familyDensity === 'dense'
+                    ? styles.miniNickDenseMerged
+                    : styles.miniNick
+                }
+                numberOfLines={1}
+              >
+                {p.nickname}
+              </Text>
+              {familyDensity === 'roomy' ? (
+                <Text style={styles.miniMeta}>
+                  {p.ageYears}y · {p.city}
+                </Text>
+              ) : familyDensity === 'compact' ? (
+                <Text style={styles.miniMeta}>{p.ageYears}y</Text>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      <SectionHeadingLink href="/digest/daily" label="Today" />
+      {todayList.shown.length > 0 ? (
+        <Link href="/digest/daily" asChild>
+          <Pressable style={styles.tileCompact} accessibilityRole="link">
+            {todayList.shown.map((item) => (
+              <View key={item.id} style={styles.mirrorRow}>
+                <Text
+                  style={[styles.mirrorTick, item.done && styles.mirrorTickDone]}
+                >
+                  {item.done ? '✓' : '○'}
+                </Text>
+                <Text
+                  style={[
+                    styles.mirrorLabel,
+                    item.done && styles.mirrorLabelDone,
+                  ]}
+                  numberOfLines={2}
+                >
+                  {item.label}
+                </Text>
+              </View>
+            ))}
+            {todayList.more > 0 ? (
+              <Text style={styles.moreHint}>+{todayList.more} more</Text>
+            ) : null}
+          </Pressable>
+        </Link>
+      ) : null}
 
       <SectionHeadingLink href="/digest/weekly" label="My Week" />
       <Link href="/digest/weekly" asChild>
@@ -399,6 +435,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textDecorationLine: 'underline',
   },
+  quickLink: { paddingVertical: 4, marginBottom: 4 },
+  quickLinkText: { fontSize: 14, fontWeight: '600', color: '#0f3d3e' },
   tile: {
     backgroundColor: '#ffffff',
     borderRadius: 12,

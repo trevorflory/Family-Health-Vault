@@ -84,7 +84,7 @@ export default function FamilyRosterScreen() {
               </Text>
               {a ? (
                 <Text style={styles.adherence}>
-                  Med adherence (7d): {Math.round(a.adherenceRate * 100)}% (
+                  Med adherence (prior 7d): {Math.round(a.adherenceRate * 100)}% (
                   {a.dosesTaken}/{a.dosesScheduled})
                 </Text>
               ) : (

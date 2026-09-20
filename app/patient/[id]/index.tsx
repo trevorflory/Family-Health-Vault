@@ -1,10 +1,23 @@
 import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  DEMO_CAREGIVER_ID,
+} from '../../../data/caregiverHousehold';
 import { getPatientVaultProfile } from '../../../data/patientVault';
 import { getVaultMedOverrides } from '../../../db/vaultMedOverrides';
-import { formatHealthStory } from '../../../utils/healthStory';
+import {
+  compileWeeklyDigest,
+  createLiveDigestLoaders,
+} from '../../../services/digestEngine';
+import type {
+  MedicationAdherenceSummary,
+  VitalTrendPoint,
+} from '../../../types/digest';
 import type { MedicationRecord } from '../../../types/triage811';
+import { formatHealthStory } from '../../../utils/healthStory';
+import { paidHrefOrUpgrade } from '../../../services/walletPaywall';
+import { getDeviceWalletPlan } from '../../../services/walletEntitlements';
 
 /**
  * Person care hub — Ask vault · My Care · My History (no duplicate About me).
@@ -21,6 +34,10 @@ export default function PatientScreen() {
     : 'No vault profile on file for this person yet.';
 
   const [meds, setMeds] = useState<MedicationRecord[]>([]);
+  const [adherence, setAdherence] = useState<MedicationAdherenceSummary | null>(
+    null,
+  );
+  const [vitals, setVitals] = useState<VitalTrendPoint[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -33,6 +50,18 @@ export default function PatientScreen() {
             (m): m is MedicationRecord => Boolean(m?.name),
           );
         setMeds(base);
+
+        const weekly = await compileWeeklyDigest(
+          DEMO_CAREGIVER_ID,
+          new Date(),
+          createLiveDigestLoaders(),
+        );
+        setAdherence(
+          weekly.adherence.find((a) => a.patientId === id) ?? null,
+        );
+        setVitals(
+          weekly.vitalTrends.filter((v) => v.patientId === id).slice(0, 6),
+        );
       })();
     }, [id, profile]),
   );
@@ -49,6 +78,27 @@ export default function PatientScreen() {
       <Text style={styles.kicker}>Family Health Vault</Text>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.lede}>{shortStory}</Text>
+
+      <View style={styles.statsCard}>
+        <Text style={styles.statsTitle}>This week</Text>
+        {adherence ? (
+          <Text style={styles.statsLine}>
+            Med adherence (prior 7d): {Math.round(adherence.adherenceRate * 100)}% (
+            {adherence.dosesTaken}/{adherence.dosesScheduled})
+          </Text>
+        ) : (
+          <Text style={styles.statsLine}>Med adherence: not tracked</Text>
+        )}
+        {vitals.length === 0 ? (
+          <Text style={styles.statsMeta}>No 7-day vital samples on file.</Text>
+        ) : (
+          vitals.map((v, i) => (
+            <Text key={`${v.date}-${v.label}-${i}`} style={styles.statsMeta}>
+              {v.date} · {v.label}: {v.value} {v.unit}
+            </Text>
+          ))
+        )}
+      </View>
 
       <Link href={`/patient/${id}/askVault`} asChild>
         <Pressable style={styles.primary}>
@@ -95,16 +145,45 @@ export default function PatientScreen() {
       <Link href={`/patient/${id}/uploadDoc`} asChild>
         <Pressable style={styles.row}>
           <Text style={styles.rowTitle}>Add history with camera</Text>
-          <Text style={styles.rowMeta}>On-device OCR · confirm before use</Text>
+          <Text style={styles.rowMeta}>
+            On-device OCR · {getDeviceWalletPlan() === 'WALLET_PRO' ? 'included' : 'requires WALLET_PRO'}
+          </Text>
         </Pressable>
       </Link>
-      <Link href={`/patient/${id}/foiWizard`} asChild>
+      <Link
+        href={paidHrefOrUpgrade('FOI', `/patient/${id}/foiWizard`) as never}
+        asChild
+      >
         <Pressable style={styles.row}>
           <Text style={styles.rowTitle}>FOI / access request</Text>
-          <Text style={styles.rowMeta}>When the portal is incomplete</Text>
+          <Text style={styles.rowMeta}>
+            When the portal is incomplete
+            {getDeviceWalletPlan() === 'FREE_FEED' ? ' · upgrade to unlock' : ''}
+          </Text>
         </Pressable>
       </Link>
-
+      <Link
+        href={
+          paidHrefOrUpgrade('SBAR_EXPORT', `/patient/${id}/sbarExport`) as never
+        }
+        asChild
+      >
+        <Pressable style={styles.row}>
+          <Text style={styles.rowTitle}>Export visit SBAR</Text>
+          <Text style={styles.rowMeta}>
+            1-page physician summary
+            {getDeviceWalletPlan() === 'FREE_FEED' ? ' · WALLET_PRO' : ''}
+          </Text>
+        </Pressable>
+      </Link>
+      <Link href="/family-feed/res-1" asChild>
+        <Pressable style={styles.row}>
+          <Text style={styles.rowTitle}>LTC facility family feed</Text>
+          <Text style={styles.rowMeta}>
+            Read-only EHR timeline · PointClickCare fixtures
+          </Text>
+        </Pressable>
+      </Link>
       <Text style={styles.section}>Share safely</Text>
       <Link href={`/patient/${id}/emergencyPass`} asChild>
         <Pressable style={styles.emergency}>
@@ -145,6 +224,20 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   lede: { fontSize: 15, color: '#355556', lineHeight: 22, marginBottom: 4 },
+  statsCard: {
+    backgroundColor: '#eef4f4',
+    borderRadius: 12,
+    padding: 14,
+    gap: 4,
+  },
+  statsTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#5a7374',
+    textTransform: 'uppercase',
+  },
+  statsLine: { fontSize: 14, fontWeight: '600', color: '#0f3d3e' },
+  statsMeta: { fontSize: 13, color: '#5a7374', lineHeight: 18 },
   section: {
     marginTop: 14,
     marginBottom: 2,

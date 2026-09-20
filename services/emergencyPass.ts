@@ -6,6 +6,8 @@ import {
   decryptAes256Gcm,
   encryptAes256Gcm,
 } from './emergencyCrypto';
+import { formatMedicationLines } from './effectiveVault';
+import { getVaultMedOverrides } from '../db/vaultMedOverrides';
 
 /** Default QR / digital pass lifetime (short-lived). */
 export const EMERGENCY_PASS_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
@@ -75,9 +77,17 @@ export async function generateEmergencyQR(
     throw new Error(`Unknown patientId for emergency pass: ${patientId}`);
   }
 
+  const overrides = await getVaultMedOverrides(patientId);
+  const resolvedContext: EmergencyPatientContext = overrides
+    ? {
+        ...context,
+        activeMedications: formatMedicationLines(overrides),
+      }
+    : context;
+
   const now = options.now ?? new Date();
   const ttlMs = options.ttlMs ?? EMERGENCY_PASS_TTL_MS;
-  const payload = buildPayload(context, now, ttlMs);
+  const payload = buildPayload(resolvedContext, now, ttlMs);
   const encryptedPayload = await encryptAes256Gcm(
     JSON.stringify(payload),
     options.secret ?? DEFAULT_EMERGENCY_PASS_SECRET,
@@ -88,7 +98,7 @@ export async function generateEmergencyQR(
     encryptedPayload,
     expiresAt: payload.expiresAt,
     issuedAt: payload.issuedAt,
-    context,
+    context: resolvedContext,
     qrValue: encryptedPayload,
   };
 }

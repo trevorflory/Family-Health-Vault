@@ -1,4 +1,5 @@
 export interface VisitGoalDraft {
+  patientId: string;
   appointmentId: string;
   goalsText: string;
   updatedAt: string;
@@ -23,10 +24,17 @@ export async function setVisitGoals(input: {
   goalsText: string;
 }): Promise<VisitGoalDraft> {
   const draft: VisitGoalDraft = {
+    patientId: input.patientId,
     appointmentId: input.appointmentId,
     goalsText: input.goalsText.trim(),
     updatedAt: new Date().toISOString(),
   };
   store.set(key(input.patientId, input.appointmentId), draft);
   return draft;
+}
+
+export async function listVisitGoals(): Promise<VisitGoalDraft[]> {
+  return [...store.values()].sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  );
 }

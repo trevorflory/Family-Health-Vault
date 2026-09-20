@@ -111,7 +111,7 @@ export async function scheduleDigestNotifications(
     identifier: WEEKLY_DIGEST_NOTIFICATION_ID,
     content: {
       title: 'Weekly Sunday Overview',
-      body: '7-day vitals, adherence, and next week’s household schedule.',
+      body: 'Household priorities and schedule for the next 7 days.',
       data: weeklyData,
       sound: true,
     },

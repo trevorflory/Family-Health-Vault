@@ -171,3 +171,14 @@
 
 - Feature work on `cursor/<name>-a310` branches.
 - Prefer small, descriptive commits focused on the active slice.
+
+## LTC EHR + multi-platform wallet (Family Health Vault Integration Framework)
+
+1. Enforce pure read-only access (REST/FHIR R4) across all EHR pipelines (PointClickCare, MEDITECH Expanse, Yardi LTC). Never write back to custodian EHRs.
+2. Prohibit any feature or UI requiring manual input or verification by facility care staff — zero-workload ingestion only.
+3. Derive family authentication and permission scopes from primary EHR contact relationship flags (`poa_scopes`); unsubscribe/channel flags in the EHR revoke delivery without app admin.
+4. Encrypt health data at rest (AES-256) and in transit (TLS 1.3). Cloud PHI residency: `northamerica-northeast1` (GCP Montreal) only — enforce via `assertMontrealResidency` / residencyGuard.
+5. `WALLET_PRO` (~$20/mo) unlocks mobile, website, and desktop. UX is mobile-first; full paid app must be testable on phone, desktop app, and 2022+ phone viewports (390×844, 430×932).
+6. Shared Zod contracts live in `packages/shared` (`MedicationRecord`, `AppointmentRecord`, `VitalRecord`, `POAScope`). Fail fast with `DomainError`. Zero PHI in structured logs (`stripPhi` / `logStructured`).
+7. Consent-first: explicit opt-in for `EHR_LTC_INGEST_DELIVERY`, `PORTAL_IMPORT`, `TELEMETRY`, `CARE_HOME_SYNC`. Never track PHI/PII in analytics.
+8. Paths: `packages/shared/`, `server/` (Drizzle + Postgres RLS), `services/ehr/`, `app/family-feed/`, `data/ehrPlaybooks.ts`. Do not add staff charting / med-pass / presence-QR for the LTC path.

@@ -166,7 +166,7 @@ describe('sandboxFlows core loops', () => {
   it('runWeeklyDigestSandbox returns weekly overview + Sunday push payload', async () => {
     const result = await runWeeklyDigestSandbox(DEMO_CAREGIVER_ID, NOW);
     expect(result.digest.weekOf).toBe('2026-09-14');
-    expect(result.digest.adherence.length).toBe(3);
+    expect(result.digest.adherence.length).toBe(7);
     expect(result.pushPayload.data).toMatchObject({
       kind: 'weekly',
       pathname: '/digest/weekly',

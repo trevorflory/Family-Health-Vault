@@ -89,10 +89,7 @@ export default function AppointmentPrepScreen() {
         }),
       );
       setVitals(
-        weekly.vitalTrends.filter((v) =>
-          // weekly vitals are household-level demo points; show all for prep context
-          Boolean(v.label),
-        ),
+        weekly.vitalTrends.filter((v) => v.patientId === patientId),
       );
       if (saved?.goalsText) setGoals(saved.goalsText);
     } finally {

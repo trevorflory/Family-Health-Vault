@@ -47,6 +47,9 @@ describe('caregiverPrompts', () => {
       ),
     ).toBe(true);
     expect(prompts.some((p) => p.kind === 'PREP_VISIT')).toBe(true);
+    expect(
+      prompts.find((p) => p.kind === 'PREP_VISIT')?.href,
+    ).toMatch(/appointmentPrep\?appointmentId=appt-dad-eye/);
     expect(prompts.some((p) => p.kind === 'POST_VISIT_DEBRIEF')).toBe(false);
   });
 

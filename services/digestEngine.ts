@@ -18,6 +18,8 @@ import {
   FOI_OVERDUE_DAYS,
   resolveOverdueTasks,
 } from './digestOverdue';
+import { mergeOverridesIntoMedsToday } from './effectiveVault';
+import { getVaultMedOverrides } from '../db/vaultMedOverrides';
 
 const MS_72H = 72 * 60 * 60 * 1000;
 
@@ -168,21 +170,23 @@ export async function compileDailyDigest(
 
   for (const dep of household.dependants) {
     const patientId = dep.dependant.patientId;
-    const [foiRecords, medicalEvents, givenIds, recentHandovers, liveAppts] =
+    const [foiRecords, medicalEvents, givenIds, recentHandovers, liveAppts, medOverrides] =
       await Promise.all([
         listFoi(patientId),
         listEvents(patientId),
         listMedMarks(patientId, todayKey),
         listHandovers(patientId, now),
         listAppts(patientId),
+        getVaultMedOverrides(patientId),
       ]);
     const givenSet = new Set(givenIds);
     const appointments = mergeAppointments(dep.appointments, liveAppts);
 
-    const medsToday = [...(dep.medsByDate[todayKey] ?? [])].map((m) => ({
-      ...m,
-      given: m.given || givenSet.has(m.medicationId),
-    }));
+    const medsToday = mergeOverridesIntoMedsToday(
+      dep.medsByDate[todayKey] ?? [],
+      medOverrides,
+      givenSet,
+    );
 
     const overdueTasks = resolveOverdueTasks({
       fixtureTasks: dep.overdueTasks,
@@ -234,7 +238,7 @@ export async function compileDailyDigest(
 
 /**
  * Sunday overview: 7-day vitals trends, med adherence, upcoming week schedule.
- * When med-dose marks exist for the last 7 days, adherence dosesTaken is bumped.
+ * When med-dose marks exist for the prior 7 days (excluding today), adherence dosesTaken is bumped.
  */
 export async function compileWeeklyDigest(
   caregiverId: string,
@@ -247,16 +251,27 @@ export async function compileWeeklyDigest(
   }
 
   const todayKey = dateKey(now);
-  const fromKey = dateKeyOffset(todayKey, -6);
+  const fromKey = dateKeyOffset(todayKey, -7);
+  /** Prior days only — today's meds are Daily checklist, not adherence. */
+  const adherenceToKey = dateKeyOffset(todayKey, -1);
   const windowEnd = dateKeyOffset(todayKey, 6);
   const listBetween = loaders.listMedDosesGivenBetween;
 
-  const vitalTrends = household.dependants.flatMap((d) => d.vitalTrends);
+  const vitalTrends = household.dependants.flatMap((d) =>
+    d.vitalTrends.map((v) => ({
+      ...v,
+      patientId: d.dependant.patientId,
+    })),
+  );
   const adherence = await Promise.all(
     household.dependants.map(async (d) => {
       const base = { ...d.adherenceLast7Days };
       if (!listBetween) return base;
-      const marks = await listBetween(d.dependant.patientId, fromKey, todayKey);
+      const marks = (
+        await listBetween(d.dependant.patientId, fromKey, adherenceToKey)
+      ).filter(
+        (m) => m.dateKey >= fromKey && m.dateKey <= adherenceToKey,
+      );
       if (marks.length === 0) return base;
       const dosesTaken = Math.min(
         base.dosesScheduled,

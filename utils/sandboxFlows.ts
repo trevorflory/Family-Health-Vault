@@ -673,3 +673,51 @@ export async function runDigitalFrontDoorDogfood(options?: {
     vaultCryptoUsingDemoKey: crypto.usingDemoKey,
   };
 }
+
+export interface PccLtcVaultBridgeSandboxResult {
+  ingestedTimeline: number;
+  vaultSaved: number;
+  medicationCount: number;
+  patientId: string;
+  deepLink: string;
+  walletProEnabled: boolean;
+}
+
+/** PCC fixture → LTC memory db → MedicalEvents for Dad + optional WALLET_PRO demo. */
+export async function runPccLtcVaultBridgeSandbox(options?: {
+  patientId?: string;
+  enableWalletPro?: boolean;
+}): Promise<PccLtcVaultBridgeSandboxResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const { resetLtcMemoryDb, runPccFixtureSync } = await import(
+    '../services/ehr/client'
+  );
+  const { syncLtcDbToVaultMedicalEvents } = await import(
+    '../services/ehr/vaultBridge'
+  );
+  const { enableSandboxWalletPro } = await import(
+    '../services/walletEntitlements'
+  );
+  const { grantConsent } = await import('../db/consentRegistry');
+
+  resetLtcMemoryDb();
+  const { db, ingested } = await runPccFixtureSync('pcc-facility-demo-01', {
+    patientId,
+  });
+  const bridge = await syncLtcDbToVaultMedicalEvents(db, { patientId });
+  grantConsent('EHR_LTC_INGEST_DELIVERY');
+  grantConsent('CARE_HOME_SYNC');
+  let walletProEnabled = false;
+  if (options?.enableWalletPro !== false) {
+    enableSandboxWalletPro();
+    walletProEnabled = true;
+  }
+  return {
+    ingestedTimeline: ingested,
+    vaultSaved: bridge.savedIds.length,
+    medicationCount: bridge.medicationCount,
+    patientId,
+    deepLink: `/family-feed`,
+    walletProEnabled,
+  };
+}

@@ -98,6 +98,8 @@ export interface VitalTrendPoint {
   label: string;
   value: number;
   unit: string;
+  /** When set, trends can be scoped to a person hub / prep screen. */
+  patientId?: string;
 }
 
 export interface MedicationAdherenceSummary {

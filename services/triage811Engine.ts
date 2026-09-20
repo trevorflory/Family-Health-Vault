@@ -1,4 +1,4 @@
-import { getPatientVaultProfile } from '../data/patientVault';
+import { getEffectiveVaultProfile } from './effectiveVault';
 import type {
   DispatcherCue,
   MedicationRecord,
@@ -313,7 +313,7 @@ export async function generate811Script(
   currentSymptoms: string[],
   options?: { emergencyFlags?: string[] },
 ): Promise<Triage811Output> {
-  const profile = getPatientVaultProfile(patientId);
+  const profile = await getEffectiveVaultProfile(patientId);
   if (!profile) {
     throw new Error(`Unknown patientId: ${patientId}`);
   }

@@ -37,6 +37,7 @@ import {
   runRemainingCanadaConnectorsSandbox,
   runDigitalFrontDoorDogfood,
   runWeeklyDigestSandbox,
+  runPccLtcVaultBridgeSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
   type OcrLabSandboxResult,
@@ -51,6 +52,7 @@ import {
   type DigitalFrontDoorDogfoodResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
+  type PccLtcVaultBridgeSandboxResult,
 } from '../../utils/sandboxFlows';
 
 type BusyKey =
@@ -73,6 +75,7 @@ type BusyKey =
   | 'nsConnect'
   | 'remainingCa'
   | 'dogfood'
+  | 'pccLtc'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -116,6 +119,8 @@ export default function SandboxHomeScreen() {
     useState<RemainingCanadaSandboxResult | null>(null);
   const [dogfoodResult, setDogfoodResult] =
     useState<DigitalFrontDoorDogfoodResult | null>(null);
+  const [pccLtcResult, setPccLtcResult] =
+    useState<PccLtcVaultBridgeSandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -301,6 +306,49 @@ export default function SandboxHomeScreen() {
           Lab {seedResult.labEventId} · visit debrief{' '}
           {seedResult.visitDebriefEventId}. {seedResult.vaccineNote}
         </Text>
+      ) : null}
+
+      <Link href="/family-feed" asChild>
+        <Pressable style={styles.card}>
+          <Text style={styles.cardTitle}>LTC family feed + WALLET_PRO</Text>
+          <Text style={styles.meta}>
+            PointClickCare fixture ingest · paid QA on phone / desktop / 390×844
+          </Text>
+          <Text style={styles.link}>Open family feed →</Text>
+        </Pressable>
+      </Link>
+
+      <ActionCard
+        title="0b. PCC LTC → vault MedicalEvents"
+        subtitle="Read-only EHR fixtures → Dad PRESCRIPTION/vitals + enable WALLET_PRO demo"
+        busy={busy === 'pccLtc'}
+        disabled={busy !== null}
+        onPress={async () => {
+          const result = await withBusy('pccLtc', () =>
+            runPccLtcVaultBridgeSandbox({ enableWalletPro: true }),
+          );
+          if (result) setPccLtcResult(result);
+        }}
+      />
+      {pccLtcResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>PCC LTC bridge</Text>
+          <Text style={styles.meta}>
+            Timeline {pccLtcResult.ingestedTimeline} · vault events{' '}
+            {pccLtcResult.vaultSaved} · meds {pccLtcResult.medicationCount} ·
+            WALLET_PRO {pccLtcResult.walletProEnabled ? 'on' : 'off'}
+          </Text>
+          <Link href={pccLtcResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open family feed →</Text>
+            </Pressable>
+          </Link>
+          <Link href={`/patient/${pccLtcResult.patientId}`} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open Dad vault →</Text>
+            </Pressable>
+          </Link>
+        </View>
       ) : null}
 
       <ActionCard
