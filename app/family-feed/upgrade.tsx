@@ -8,6 +8,7 @@ import {
 } from '@family-health-vault/shared';
 import {
   enableSandboxWalletPro,
+  disableSandboxWalletPro,
   getDeviceWalletPlan,
   getDevicePlatforms,
 } from '../../services/walletEntitlements';
@@ -64,6 +65,16 @@ export default function FamilyFeedUpgradeScreen() {
           Enable sandbox {DEMO_WALLET_PRO_ENTITLEMENT.plan} (no Stripe)
         </Text>
       </Pressable>
+      <Pressable
+        style={styles.secondaryCta}
+        onPress={() => {
+          disableSandboxWalletPro();
+          setPlan(getDeviceWalletPlan());
+          setPlatforms(getDevicePlatforms());
+        }}
+      >
+        <Text style={styles.secondaryCtaText}>Disable PRO (back to FREE_FEED)</Text>
+      </Pressable>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Upgrade unlocks</Text>
@@ -114,6 +125,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   ctaText: { color: '#fff', fontWeight: '700', textAlign: 'center' },
+  secondaryCta: {
+    backgroundColor: '#eef4f4',
+    borderRadius: 12,
+    padding: 14,
+  },
+  secondaryCtaText: { color: '#0f3d3e', fontWeight: '700', textAlign: 'center' },
   card: {
     backgroundColor: '#eef4f4',
     borderRadius: 12,

@@ -721,3 +721,84 @@ export async function runPccLtcVaultBridgeSandbox(options?: {
     walletProEnabled,
   };
 }
+
+export interface LocalFullTestPathResult {
+  patientId: string;
+  appointments: number;
+  vitalsEventId?: string;
+  simulatorIngested: number;
+  vaultFromSim: number;
+  digestHeadline: string;
+  sbarUri: string;
+  walletPro: boolean;
+}
+
+/**
+ * Seed → local appt + vital → EHR simulator → digest + SBAR (no cloud).
+ */
+export async function runLocalFullTestPathSandbox(options?: {
+  patientId?: string;
+  now?: Date;
+}): Promise<LocalFullTestPathResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const now = options?.now ?? new Date();
+  const { seedLocalSandboxData: seed } = await import('./mockSeeder');
+  await seed();
+
+  const { upsertAppointment } = await import('../db/appointments');
+  const { addLocalVital } = await import('../db/localVitals');
+  const { setProfileOverride } = await import('../db/profileOverrides');
+  const {
+    presetPrimaryPoaClinical,
+    runSimulatorIngest,
+  } = await import('../services/ehr/simulator');
+  const { enableSandboxWalletPro } = await import(
+    '../services/walletEntitlements'
+  );
+
+  await setProfileOverride({
+    patientId,
+    preferredName: 'Bob (local)',
+    conditionsText: 'Type 2 Diabetes, Stage 3 CKD',
+    allergiesText: 'NKDA (local note)',
+  });
+
+  await upsertAppointment(patientId, {
+    appointmentId: `local-fulltest-${now.getTime()}`,
+    title: 'Local full-test nephrology',
+    startsAt: new Date(now.getTime() + 36 * 3600_000).toISOString(),
+    location: 'Clinic A',
+    preparationAlert: 'Bring SBAR',
+    clinicianName: 'Dr Local',
+    source: 'VAULT',
+  });
+
+  const vital = await addLocalVital({
+    patientId,
+    type: 'BP_SYS',
+    value: 134,
+    recordedAtISO: now.toISOString(),
+  });
+
+  const sim = await runSimulatorIngest(presetPrimaryPoaClinical(), {
+    reset: true,
+    bridgeToVault: true,
+    patientId,
+  });
+
+  enableSandboxWalletPro();
+
+  const digest = await runDailyDigestSandbox(DEMO_CAREGIVER_ID, now);
+  const sbar = await runDadSbarSandbox({ now });
+
+  return {
+    patientId,
+    appointments: 1,
+    vitalsEventId: vital.eventId,
+    simulatorIngested: sim.ingested,
+    vaultFromSim: sim.vaultSaved,
+    digestHeadline: digest.headline,
+    sbarUri: sbar.uri,
+    walletPro: true,
+  };
+}

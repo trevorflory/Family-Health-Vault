@@ -57,6 +57,18 @@ export default function RootLayout() {
           options={{ title: 'Prescriptions' }}
         />
         <Stack.Screen
+          name="patient/[id]/vitals"
+          options={{ title: 'Vitals (local)' }}
+        />
+        <Stack.Screen
+          name="patient/[id]/events"
+          options={{ title: 'MedicalEvents inbox' }}
+        />
+        <Stack.Screen
+          name="patient/[id]/profile"
+          options={{ title: 'Profile (local)' }}
+        />
+        <Stack.Screen
           name="patient/[id]/foiWizard"
           options={{ title: 'FOI Record Request' }}
         />
@@ -125,8 +137,24 @@ export default function RootLayout() {
           options={{ title: 'QA Sandbox' }}
         />
         <Stack.Screen
+          name="sandbox/ehrSimulator"
+          options={{ title: 'EHR Ingest Simulator' }}
+        />
+        <Stack.Screen
           name="sandbox/aiTest"
           options={{ title: 'Local LLM Sandbox' }}
+        />
+        <Stack.Screen
+          name="family-feed/index"
+          options={{ title: 'Family feed' }}
+        />
+        <Stack.Screen
+          name="family-feed/[residentId]"
+          options={{ title: 'Family feed' }}
+        />
+        <Stack.Screen
+          name="family-feed/upgrade"
+          options={{ title: 'WALLET_PRO' }}
         />
       </Stack>
     </WebPhoneFrame>

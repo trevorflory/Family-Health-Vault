@@ -1,5 +1,6 @@
 import { getPatientVaultProfile } from '../data/patientVault';
 import { getVaultMedOverrides } from '../db/vaultMedOverrides';
+import { getProfileOverride } from '../db/profileOverrides';
 import type { DigestMedicationDue } from '../types/digest';
 import type {
   MedicationRecord,
@@ -7,16 +8,40 @@ import type {
 } from '../types/triage811';
 
 /**
- * Resolve vault profile with session medication overrides applied when present.
+ * Resolve vault profile with session medication + profile overrides when present.
  */
 export async function getEffectiveVaultProfile(
   patientId: string,
 ): Promise<PatientVaultProfile | undefined> {
   const profile = getPatientVaultProfile(patientId);
   if (!profile) return undefined;
-  const overrides = await getVaultMedOverrides(patientId);
-  if (!overrides) return profile;
-  return { ...profile, activeMedications: overrides };
+  const [overrides, profileOverride] = await Promise.all([
+    getVaultMedOverrides(patientId),
+    getProfileOverride(patientId),
+  ]);
+  let next: PatientVaultProfile = profile;
+  if (overrides) {
+    next = { ...next, activeMedications: overrides };
+  }
+  if (profileOverride) {
+    const conditions = profileOverride.conditionsText
+      ? profileOverride.conditionsText
+          .split(/[,;\n]/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : next.chronicConditions;
+    const markers = [...(next.historicalMarkers ?? [])];
+    if (profileOverride.allergiesText) {
+      markers.unshift(`Allergies (local): ${profileOverride.allergiesText}`);
+    }
+    next = {
+      ...next,
+      preferredName: profileOverride.preferredName ?? next.preferredName,
+      chronicConditions: conditions,
+      historicalMarkers: markers,
+    };
+  }
+  return next;
 }
 
 export async function getEffectiveMedications(

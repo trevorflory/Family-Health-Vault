@@ -38,6 +38,7 @@ import {
   runDigitalFrontDoorDogfood,
   runWeeklyDigestSandbox,
   runPccLtcVaultBridgeSandbox,
+  runLocalFullTestPathSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
   type OcrLabSandboxResult,
@@ -53,6 +54,7 @@ import {
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
   type PccLtcVaultBridgeSandboxResult,
+  type LocalFullTestPathResult,
 } from '../../utils/sandboxFlows';
 
 type BusyKey =
@@ -76,6 +78,7 @@ type BusyKey =
   | 'remainingCa'
   | 'dogfood'
   | 'pccLtc'
+  | 'localFull'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -121,6 +124,8 @@ export default function SandboxHomeScreen() {
     useState<DigitalFrontDoorDogfoodResult | null>(null);
   const [pccLtcResult, setPccLtcResult] =
     useState<PccLtcVaultBridgeSandboxResult | null>(null);
+  const [localFullResult, setLocalFullResult] =
+    useState<LocalFullTestPathResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -317,6 +322,45 @@ export default function SandboxHomeScreen() {
           <Text style={styles.link}>Open family feed →</Text>
         </Pressable>
       </Link>
+
+      <Link href="/sandbox/ehrSimulator" asChild>
+        <Pressable style={styles.card}>
+          <Text style={styles.cardTitle}>EHR ingest simulator (QA)</Text>
+          <Text style={styles.meta}>
+            Fake eMAR / calendar / vitals / contacts → same normalizer. Not staff
+            charting.
+          </Text>
+          <Text style={styles.link}>Open simulator →</Text>
+        </Pressable>
+      </Link>
+
+      <ActionCard
+        title="0c. Run full local path"
+        subtitle="Seed → appt/vital/profile → EHR sim → digest/SBAR + WALLET_PRO (no cloud)"
+        busy={busy === 'localFull'}
+        disabled={busy !== null}
+        onPress={async () => {
+          const result = await withBusy('localFull', () =>
+            runLocalFullTestPathSandbox(),
+          );
+          if (result) setLocalFullResult(result);
+        }}
+      />
+      {localFullResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Full local path</Text>
+          <Text style={styles.meta}>
+            {localFullResult.patientId} · sim {localFullResult.simulatorIngested}{' '}
+            · vault+{localFullResult.vaultFromSim} ·{' '}
+            {localFullResult.digestHeadline}
+          </Text>
+          <Link href={`/patient/${localFullResult.patientId}`} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open Dad editors →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
 
       <ActionCard
         title="0b. PCC LTC → vault MedicalEvents"

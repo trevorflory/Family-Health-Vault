@@ -110,11 +110,19 @@ export default function PatientScreen() {
       </Link>
 
       <Text style={styles.section}>My Care</Text>
+      <Link href={`/patient/${id}/profile`} asChild>
+        <Pressable style={styles.row}>
+          <Text style={styles.rowTitle}>Profile (local edit)</Text>
+          <Text style={styles.rowMeta}>
+            Preferred name · conditions · allergies overrides
+          </Text>
+        </Pressable>
+      </Link>
       <Link href={`/patient/${id}/appointments`} asChild>
         <Pressable style={styles.row}>
           <Text style={styles.rowTitle}>Medical Appointments</Text>
           <Text style={styles.rowMeta}>
-            Record a visit · appointment prep (SBAR / insights / goals)
+            Add/edit visits · record · appointment prep
           </Text>
         </Pressable>
       </Link>
@@ -130,6 +138,20 @@ export default function PatientScreen() {
         <Pressable style={styles.row}>
           <Text style={styles.rowTitle}>Prescriptions</Text>
           <Text style={styles.rowMeta}>{medSummary}</Text>
+        </Pressable>
+      </Link>
+      <Link href={`/patient/${id}/vitals`} asChild>
+        <Pressable style={styles.row}>
+          <Text style={styles.rowTitle}>Vitals (local)</Text>
+          <Text style={styles.rowMeta}>
+            BP · weight · glucose · HR for digest / Insights QA
+          </Text>
+        </Pressable>
+      </Link>
+      <Link href={`/patient/${id}/events`} asChild>
+        <Pressable style={styles.row}>
+          <Text style={styles.rowTitle}>MedicalEvents inbox</Text>
+          <Text style={styles.rowMeta}>Confirm / reject / edit vault events</Text>
         </Pressable>
       </Link>
 
