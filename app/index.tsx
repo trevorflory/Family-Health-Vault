@@ -352,6 +352,11 @@ export default function HomeScreen() {
       </Pressable>
 
       <Text style={styles.devSection}>Developer</Text>
+      <Link href="/qa-links" asChild>
+        <Pressable style={styles.devRow}>
+          <Text style={styles.devText}>QA links (all test URLs)</Text>
+        </Pressable>
+      </Link>
       <Link href="/sandbox" asChild>
         <Pressable style={styles.devRow}>
           <Text style={styles.devText}>QA sandbox</Text>

@@ -145,6 +145,10 @@ export default function RootLayout() {
           options={{ title: 'Local LLM Sandbox' }}
         />
         <Stack.Screen
+          name="qa-links"
+          options={{ title: 'QA Links' }}
+        />
+        <Stack.Screen
           name="family-feed/index"
           options={{ title: 'Family feed' }}
         />

@@ -313,6 +313,16 @@ export default function SandboxHomeScreen() {
         </Text>
       ) : null}
 
+      <Link href="/qa-links" asChild>
+        <Pressable style={styles.card}>
+          <Text style={styles.cardTitle}>QA links board</Text>
+          <Text style={styles.meta}>
+            Clickable routes for desktop web · Expo Go · 390×844 / 430×932
+          </Text>
+          <Text style={styles.link}>Open QA links →</Text>
+        </Pressable>
+      </Link>
+
       <Link href="/family-feed" asChild>
         <Pressable style={styles.card}>
           <Text style={styles.cardTitle}>LTC family feed + WALLET_PRO</Text>

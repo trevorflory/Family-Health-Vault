@@ -7,7 +7,7 @@ import type {
   MedicalEventRecord,
   MedicalEventStatus,
 } from '../types/db';
-import { getMedicalEventById, saveMedicalEvent } from './medicalEvents';
+import { getMedicalEventById, saveMedicalEvent } from '../db/medicalEvents';
 
 export async function updateMedicalEventReview(input: {
   id: string;

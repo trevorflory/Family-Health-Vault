@@ -1,9 +1,20 @@
-import type { ProfileOverride } from './profileOverrides';
+/**
+ * Web: sessionStorage-backed profile overrides for local full-test.
+ */
+
 import {
   clearSessionMap,
   loadSessionMap,
   persistSessionMap,
 } from './webSessionMap';
+
+export interface ProfileOverride {
+  patientId: string;
+  preferredName?: string;
+  conditionsText?: string;
+  allergiesText?: string;
+  updatedAt: string;
+}
 
 const KEY = 'healthcare.web.profileOverrides.v1';
 const map = loadSessionMap<ProfileOverride>(KEY);
@@ -42,5 +53,3 @@ export function __resetProfileOverridesForTests(): void {
   map.clear();
   clearSessionMap(KEY);
 }
-
-export type { ProfileOverride };
