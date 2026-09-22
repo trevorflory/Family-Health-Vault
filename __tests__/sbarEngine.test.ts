@@ -205,6 +205,24 @@ describe('sbarEngine', () => {
       compileSBAR('pt-missing', { visitReason: 'Check-up' }, { now }),
     ).rejects.toThrow(/Unknown patientId/i);
   });
+
+  it('folds visit goals into Recommendation as educational talking points', async () => {
+    const doc = await compileSBAR(
+      'pt-7801',
+      {
+        visitReason: 'Clinic prep',
+        appointmentId: 'appt-dad-gp',
+        includeMedicalEvents: false,
+      },
+      {
+        now,
+        medicalEvents: [],
+        visitGoalsText: 'Ask about eGFR trend and dizziness after Ramipril',
+      },
+    );
+    expect(doc.sections.recommendation).toMatch(/eGFR trend/i);
+    expect(doc.sections.recommendation).toMatch(/visit goals/i);
+  });
 });
 
 describe('sbarTemplate', () => {

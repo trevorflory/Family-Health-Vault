@@ -35,7 +35,10 @@ import {
   runMbEchartConnectorSandbox,
   runNsYourHealthConnectorSandbox,
   runRemainingCanadaConnectorsSandbox,
+  runDigitalFrontDoorDogfood,
   runWeeklyDigestSandbox,
+  runPccLtcVaultBridgeSandbox,
+  runLocalFullTestPathSandbox,
   type DigestSandboxResult,
   type EmergencyPassSandboxResult,
   type OcrLabSandboxResult,
@@ -47,8 +50,11 @@ import {
   type MbConnectorSandboxResult,
   type NsConnectorSandboxResult,
   type RemainingCanadaSandboxResult,
+  type DigitalFrontDoorDogfoodResult,
   type VoiceDebriefSandboxResult,
   type WeeklyDigestSandboxResult,
+  type PccLtcVaultBridgeSandboxResult,
+  type LocalFullTestPathResult,
 } from '../../utils/sandboxFlows';
 
 type BusyKey =
@@ -70,6 +76,9 @@ type BusyKey =
   | 'mbConnect'
   | 'nsConnect'
   | 'remainingCa'
+  | 'dogfood'
+  | 'pccLtc'
+  | 'localFull'
   | null;
 
 export default function SandboxHomeScreen() {
@@ -111,6 +120,12 @@ export default function SandboxHomeScreen() {
     useState<NsConnectorSandboxResult | null>(null);
   const [remainingCaResult, setRemainingCaResult] =
     useState<RemainingCanadaSandboxResult | null>(null);
+  const [dogfoodResult, setDogfoodResult] =
+    useState<DigitalFrontDoorDogfoodResult | null>(null);
+  const [pccLtcResult, setPccLtcResult] =
+    useState<PccLtcVaultBridgeSandboxResult | null>(null);
+  const [localFullResult, setLocalFullResult] =
+    useState<LocalFullTestPathResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function withBusy<T>(
@@ -263,6 +278,13 @@ export default function SandboxHomeScreen() {
     if (result) setRemainingCaResult(result);
   }
 
+  async function onDogfood() {
+    const result = await withBusy('dogfood', () =>
+      runDigitalFrontDoorDogfood(),
+    );
+    if (result) setDogfoodResult(result);
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.kicker}>QA sandbox</Text>
@@ -289,6 +311,98 @@ export default function SandboxHomeScreen() {
           Lab {seedResult.labEventId} · visit debrief{' '}
           {seedResult.visitDebriefEventId}. {seedResult.vaccineNote}
         </Text>
+      ) : null}
+
+      <Link href="/qa-links" asChild>
+        <Pressable style={styles.card}>
+          <Text style={styles.cardTitle}>QA links board</Text>
+          <Text style={styles.meta}>
+            Clickable routes for desktop web · Expo Go · 390×844 / 430×932
+          </Text>
+          <Text style={styles.link}>Open QA links →</Text>
+        </Pressable>
+      </Link>
+
+      <Link href="/family-feed" asChild>
+        <Pressable style={styles.card}>
+          <Text style={styles.cardTitle}>LTC family feed + WALLET_PRO</Text>
+          <Text style={styles.meta}>
+            PointClickCare fixture ingest · paid QA on phone / desktop / 390×844
+          </Text>
+          <Text style={styles.link}>Open family feed →</Text>
+        </Pressable>
+      </Link>
+
+      <Link href="/sandbox/ehrSimulator" asChild>
+        <Pressable style={styles.card}>
+          <Text style={styles.cardTitle}>EHR ingest simulator (QA)</Text>
+          <Text style={styles.meta}>
+            Fake eMAR / calendar / vitals / contacts → same normalizer. Not staff
+            charting.
+          </Text>
+          <Text style={styles.link}>Open simulator →</Text>
+        </Pressable>
+      </Link>
+
+      <ActionCard
+        title="0c. Run full local path"
+        subtitle="Seed → appt/vital/profile → EHR sim → digest/SBAR + WALLET_PRO (no cloud)"
+        busy={busy === 'localFull'}
+        disabled={busy !== null}
+        onPress={async () => {
+          const result = await withBusy('localFull', () =>
+            runLocalFullTestPathSandbox(),
+          );
+          if (result) setLocalFullResult(result);
+        }}
+      />
+      {localFullResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Full local path</Text>
+          <Text style={styles.meta}>
+            {localFullResult.patientId} · sim {localFullResult.simulatorIngested}{' '}
+            · vault+{localFullResult.vaultFromSim} ·{' '}
+            {localFullResult.digestHeadline}
+          </Text>
+          <Link href={`/patient/${localFullResult.patientId}`} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open Dad editors →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="0b. PCC LTC → vault MedicalEvents"
+        subtitle="Read-only EHR fixtures → Dad PRESCRIPTION/vitals + enable WALLET_PRO demo"
+        busy={busy === 'pccLtc'}
+        disabled={busy !== null}
+        onPress={async () => {
+          const result = await withBusy('pccLtc', () =>
+            runPccLtcVaultBridgeSandbox({ enableWalletPro: true }),
+          );
+          if (result) setPccLtcResult(result);
+        }}
+      />
+      {pccLtcResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>PCC LTC bridge</Text>
+          <Text style={styles.meta}>
+            Timeline {pccLtcResult.ingestedTimeline} · vault events{' '}
+            {pccLtcResult.vaultSaved} · meds {pccLtcResult.medicationCount} ·
+            WALLET_PRO {pccLtcResult.walletProEnabled ? 'on' : 'off'}
+          </Text>
+          <Link href={pccLtcResult.deepLink} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open family feed →</Text>
+            </Pressable>
+          </Link>
+          <Link href={`/patient/${pccLtcResult.patientId}`} asChild>
+            <Pressable>
+              <Text style={styles.link}>Open Dad vault →</Text>
+            </Pressable>
+          </Link>
+        </View>
       ) : null}
 
       <ActionCard
@@ -563,6 +677,26 @@ export default function SandboxHomeScreen() {
               <Text style={styles.link}>Open portal sync →</Text>
             </Pressable>
           </Link>
+        </View>
+      ) : null}
+
+      <ActionCard
+        title="3j. Dogfood digital front door (BC+NS)"
+        subtitle="CSV + Patient Summary → digest → SBAR → 811 → FOI → proxy ask-vault"
+        busy={busy === 'dogfood'}
+        disabled={busy !== null}
+        onPress={onDogfood}
+      />
+      {dogfoodResult ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Dogfood result</Text>
+          <Text style={styles.meta}>
+            BC {dogfoodResult.bcImported} · NS {dogfoodResult.nsImported} · 811
+            cues {dogfoodResult.script811Cues} · ask deny/allow{' '}
+            {dogfoodResult.askDeniedWithoutGrant ? 'deny' : '?'} /
+            {dogfoodResult.askPermittedWithGrant ? 'allow' : '?'}
+          </Text>
+          <Text style={styles.meta}>{dogfoodResult.digestHeadline}</Text>
         </View>
       ) : null}
 

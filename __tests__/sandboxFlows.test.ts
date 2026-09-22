@@ -72,6 +72,7 @@ import {
   runMbEchartConnectorSandbox,
   runNsYourHealthConnectorSandbox,
   runRemainingCanadaConnectorsSandbox,
+  runDigitalFrontDoorDogfood,
   runWeeklyDigestSandbox,
 } from '../utils/sandboxFlows';
 import { getDadSandboxMedicalEvents } from '../utils/mockSeeder';
@@ -165,7 +166,7 @@ describe('sandboxFlows core loops', () => {
   it('runWeeklyDigestSandbox returns weekly overview + Sunday push payload', async () => {
     const result = await runWeeklyDigestSandbox(DEMO_CAREGIVER_ID, NOW);
     expect(result.digest.weekOf).toBe('2026-09-14');
-    expect(result.digest.adherence.length).toBe(3);
+    expect(result.digest.adherence.length).toBe(7);
     expect(result.pushPayload.data).toMatchObject({
       kind: 'weekly',
       pathname: '/digest/weekly',
@@ -269,5 +270,17 @@ describe('sandboxFlows core loops', () => {
     ]);
     expect(result.totalImported).toBeGreaterThanOrEqual(24);
     expect(result.allSmartUnavailable).toBe(true);
+  });
+
+  it('runDigitalFrontDoorDogfood exercises BC/NS pilots through core loops', async () => {
+    const result = await runDigitalFrontDoorDogfood({
+      now: new Date('2026-09-15T12:00:00.000Z'),
+    });
+    expect(result.bcImported).toBeGreaterThanOrEqual(4);
+    expect(result.nsImported).toBeGreaterThanOrEqual(4);
+    expect(result.script811Cues).toBe(4);
+    expect(result.askDeniedWithoutGrant).toBe(true);
+    expect(result.askPermittedWithGrant).toBe(true);
+    expect(result.foiUri).toBeTruthy();
   });
 });

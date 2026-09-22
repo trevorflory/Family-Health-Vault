@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@family-health-vault/shared": "file:packages/shared",
     "@expo/metro-runtime": "~57.0.15",
     "babel-preset-expo": "~57.0.0",
     "expo": "~57.0.22",
+    "zod": "^3.24.2",
     "expo-av": "^16.0.8",
     "expo-constants": "~57.0.18",
     "expo-document-picker": "~57.0.2",
@@ -44,8 +46,12 @@
     "ios": "expo start --ios",
     "web": "expo start --web --port 43127",
     "web:clear": "expo start --web --port 43127 --clear",
+    "web:phone": "expo start --web --port 43127",
+    "web:phone:390": "expo start --web --port 43127",
+    "web:desktop": "expo start --web --port 43127",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "qa:paid-matrix": "node scripts/printPaidQaMatrix.js"
   },
   "engines": {
     "node": ">=20"

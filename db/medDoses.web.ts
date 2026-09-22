@@ -79,6 +79,36 @@ export async function listMedDosesGivenBetween(
   );
 }
 
+export async function clearMedDoseGiven(
+  patientId: string,
+  medicationId: string,
+  dateKey: string,
+): Promise<void> {
+  memoryStore.delete(markId(patientId, medicationId, dateKey));
+  persist();
+}
+
+export async function setMedDoseGiven(input: {
+  patientId: string;
+  medicationId: string;
+  dateKey: string;
+  given: boolean;
+}): Promise<void> {
+  if (input.given) {
+    await markMedDosesGiven({
+      patientId: input.patientId,
+      medicationIds: [input.medicationId],
+      dateKey: input.dateKey,
+    });
+  } else {
+    await clearMedDoseGiven(
+      input.patientId,
+      input.medicationId,
+      input.dateKey,
+    );
+  }
+}
+
 export function __resetMedDosesForTests(): void {
   memoryStore.clear();
   clearSessionMap(STORAGE_KEY);

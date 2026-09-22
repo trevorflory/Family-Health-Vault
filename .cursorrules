@@ -25,7 +25,11 @@
 - `app/patient/[id]/voiceDebrief.tsx` — post-visit voice debrief UI
 - `app/sandbox/aiTest.tsx` — local Ollama / SaMD sandbox UI
 - `app/sandbox/index.tsx` — QA core-loop sandbox (digest / SBAR / FOI / 811)
-- `utils/mockSeeder.ts` — SQLite dummy Dad/Child profile seeder
+- `utils/homeAgenda.ts` — Home “Today / Tomorrow / My Week” from digests + appointment prompts
+- `services/caregiverPrompts.ts` — auto check-in / prep / post-visit voice-note prompts from appointments
+- `services/calendar/ics.ts` + `services/calendar/googleCalendarBridge.ts` — Google Calendar via .ics FILE_IMPORT/export (no live OAuth)
+- `db/appointments.ts` — vault appointments store (ICS imports + manual)
+
 - `app/patient/[id]/emergencyPass.tsx` — emergency QR + wallet card
 - `app/patient/[id]/proxyAccess.tsx` — proxy roles, access log, age-out hand-off
 - `app/patient/[id]/insights.tsx` — biomarker trends / visit-prep Insights
@@ -55,6 +59,9 @@
 13. Manitoba (`mb-shared`): eChart is clinician-facing — FILE_IMPORT via care-org portal OCR or eChart PHI lab copy (`importMbEchartLabText`, `importMbFhirJsonExport`); FOI via Shared Health / WRHA under PHIA. Do not invent a patient SMART endpoint.
 14. Nova Scotia (`ns-nsha` / YourHealthNS): FILE_IMPORT (`importNsYourHealthLabText`, `importNsFhirJsonExport`); FOI via Nova Scotia Health. Do not claim a public SMART launch.
 15. Remaining Canada (`data/canadaRemainingInterop.ts` + `canadaRemainingConnectors.ts`): NB MyHealthNB (`nb-myhealth`), NL MyHealthNL (`nl-nlhs`), PE MyHealthPEI (`pe-healthpei`), YT/NT/NU ATIPP-first FILE_IMPORT (`yt-hss`, `nt-nthssa`, `nu-health`). Territories have no general consumer portals — do not invent SMART endpoints. Shared kit: `fileImportProvinceKit.ts`.
+16. BC / NS pilots: prefer real export shapes — Health Gateway CSV (`importBcHealthGatewayCsv`) and YourHealthNS Patient Summary (`importNsPatientSummaryText`). Still NOT_PUBLIC SMART.
+17. Ask-my-vault may require proxy `READ_VAULT` (append-only access log `ASK_MY_VAULT`). Override vault key via `EXPO_PUBLIC_VAULT_CRYPTO_KEY` (≥32 chars); never log plaintext/decrypted fields.
+18. Portal sync front door uses `services/interop/portalRegistry.ts` (list → province detail). Do not dump all 13 connectors as one long scroll; keep playbooks behind jurisdiction selection.
 
 
 
@@ -138,12 +145,12 @@
 
 ## 811 Call Assistant rules
 
-1. `generate811Script` is a Contextual Summarizer / Caregiver Script Assistant only.
+1. `generate811Script` is a Contextual Summarizer / Caregiver Script Assistant only (Symptom Checker UI may guide intake).
 2. Never emit diagnostic verdicts, acuity scores, or treatment/prescription instructions.
 3. Tolerate null/missing medication dose and frequency without crashing.
 4. Frame output for answering the 811 nurse’s dispatcher script (they ask; caregiver answers from vault).
 5. Always return `spokenIntroScript`, exactly 4 `dispatcherCueSheet` cues, `historicalRedFlags`, and exactly 3 `questionsToAskNurse`.
-6. Call action uses `expo-linking` with `tel:811` only after a script is generated.
+6. Call action uses `expo-linking` with `tel:811` after a script is generated; optional `tel:911` + Emergency Pass QR only when the caregiver selects life-threatening-now flags (`offerEmergencyTools`) — never as a clinical disposition.
 
 ## FOI module rules
 
@@ -164,3 +171,14 @@
 
 - Feature work on `cursor/<name>-a310` branches.
 - Prefer small, descriptive commits focused on the active slice.
+
+## LTC EHR + multi-platform wallet (Family Health Vault Integration Framework)
+
+1. Enforce pure read-only access (REST/FHIR R4) across all EHR pipelines (PointClickCare, MEDITECH Expanse, Yardi LTC). Never write back to custodian EHRs.
+2. Prohibit any feature or UI requiring manual input or verification by facility care staff — zero-workload ingestion only.
+3. Derive family authentication and permission scopes from primary EHR contact relationship flags (`poa_scopes`); unsubscribe/channel flags in the EHR revoke delivery without app admin.
+4. Encrypt health data at rest (AES-256) and in transit (TLS 1.3). Cloud PHI residency: `northamerica-northeast1` (GCP Montreal) only — enforce via `assertMontrealResidency` / residencyGuard.
+5. `WALLET_PRO` (~$20/mo) unlocks mobile, website, and desktop. UX is mobile-first; full paid app must be testable on phone, desktop app, and 2022+ phone viewports (390×844, 430×932).
+6. Shared Zod contracts live in `packages/shared` (`MedicationRecord`, `AppointmentRecord`, `VitalRecord`, `POAScope`). Fail fast with `DomainError`. Zero PHI in structured logs (`stripPhi` / `logStructured`).
+7. Consent-first: explicit opt-in for `EHR_LTC_INGEST_DELIVERY`, `PORTAL_IMPORT`, `TELEMETRY`, `CARE_HOME_SYNC`. Never track PHI/PII in analytics.
+8. Paths: `packages/shared/`, `server/` (Drizzle + Postgres RLS), `services/ehr/`, `app/family-feed/`, `data/ehrPlaybooks.ts`. Do not add staff charting / med-pass / presence-QR for the LTC path.

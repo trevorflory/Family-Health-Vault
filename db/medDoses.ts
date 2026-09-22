@@ -95,6 +95,39 @@ export async function listMedDosesGivenBetween(
   );
 }
 
+export async function clearMedDoseGiven(
+  patientId: string,
+  medicationId: string,
+  dateKey: string,
+): Promise<void> {
+  await ensureTable();
+  const db = await getHealthcareDb();
+  await db.runAsync(`DELETE FROM MedDoseMarks WHERE id = ?`, [
+    markId(patientId, medicationId, dateKey),
+  ]);
+}
+
+export async function setMedDoseGiven(input: {
+  patientId: string;
+  medicationId: string;
+  dateKey: string;
+  given: boolean;
+}): Promise<void> {
+  if (input.given) {
+    await markMedDosesGiven({
+      patientId: input.patientId,
+      medicationIds: [input.medicationId],
+      dateKey: input.dateKey,
+    });
+  } else {
+    await clearMedDoseGiven(
+      input.patientId,
+      input.medicationId,
+      input.dateKey,
+    );
+  }
+}
+
 export function __resetMedDosesForTests(): void {
   // Native tests should reset via shared healthcare DB helper when needed.
 }

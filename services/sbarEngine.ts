@@ -2,8 +2,8 @@ import {
   DEMO_CAREGIVER_ID,
   getHousehold,
 } from '../data/caregiverHousehold';
-import { getPatientVaultProfile } from '../data/patientVault';
 import { listMedicalEventsForPatient } from '../db/medicalEvents';
+import { getVisitGoals } from '../db/visitGoals';
 import type {
   MedicalEventRecord,
   OcrParsedPayload,
@@ -16,6 +16,7 @@ import type {
   SBARSections,
 } from '../types/sbar';
 import type { PatientVaultProfile } from '../types/triage811';
+import { getEffectiveVaultProfile } from './effectiveVault';
 import { formatActiveMedications } from './triage811Engine';
 
 export const SBAR_REGULATORY_NOTICE =
@@ -28,6 +29,8 @@ export interface CompileSBAROptions {
   /** Injectable events for tests; skips DB when provided. */
   medicalEvents?: MedicalEventRecord[];
   now?: Date;
+  /** Injectable visit goals text for tests. */
+  visitGoalsText?: string | null;
 }
 
 function clip(text: string, max: number): string {
@@ -307,10 +310,14 @@ function buildRecommendation(
   visitReason: string,
   docs: string[],
   appointment: SBARAppointmentContext | null,
+  visitGoalsText?: string | null,
 ): string {
   const focus = visitReason.trim() || 'the listed concerns';
+  const goals = visitGoalsText?.trim();
   const questions = [
-    `Please confirm priorities for today’s visit focused on: ${focus}.`,
+    goals
+      ? `Caregiver visit goals to discuss (educational talking points, not a care plan): ${clip(goals, 160)}`
+      : `Please confirm priorities for today’s visit focused on: ${focus}.`,
     'Which warning signs should the caregiver monitor before the next appointment?',
     'Are any medication timing or lab follow-ups needed from the caregiver side?',
   ];
@@ -331,7 +338,7 @@ export async function compileSBAR(
   options: CompileSBAROptions = {},
 ): Promise<SBARDocument> {
   const now = options.now ?? new Date();
-  const profile = getPatientVaultProfile(patientId);
+  const profile = await getEffectiveVaultProfile(patientId);
   if (!profile) {
     throw new Error(`Unknown patientId: ${patientId}`);
   }
@@ -344,6 +351,12 @@ export async function compileSBAR(
   if (input.includeMedicalEvents !== false) {
     events =
       options.medicalEvents ?? (await listMedicalEventsForPatient(patientId));
+  }
+
+  let visitGoalsText = options.visitGoalsText;
+  if (visitGoalsText === undefined && input.appointmentId) {
+    const saved = await getVisitGoals(patientId, input.appointmentId);
+    visitGoalsText = saved?.goalsText ?? null;
   }
 
   const summarized = summarizeMedicalEvents(events);
@@ -364,7 +377,12 @@ export async function compileSBAR(
       input.caregiverNotes,
       summarized.assessmentExtras,
     ),
-    recommendation: buildRecommendation(input.visitReason, docs, appointment),
+    recommendation: buildRecommendation(
+      input.visitReason,
+      docs,
+      appointment,
+      visitGoalsText,
+    ),
   };
 
   return {

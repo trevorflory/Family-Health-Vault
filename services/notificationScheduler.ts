@@ -5,14 +5,18 @@ import { DEMO_CAREGIVER_ID } from '../data/caregiverHousehold';
 export const DAILY_DIGEST_NOTIFICATION_ID = 'digest-daily-0700';
 export const WEEKLY_DIGEST_NOTIFICATION_ID = 'digest-weekly-sun-1600';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+} catch {
+  // expo-notifications stubs throw on web for several native-only APIs.
+}
 
 export function dailyDigestDeepLink(
   caregiverId: string = DEMO_CAREGIVER_ID,
@@ -38,15 +42,23 @@ export function weeklyDigestDeepLink(
  * Request notification permissions. Returns whether scheduling may proceed.
  */
 export async function ensureNotificationPermissions(): Promise<boolean> {
-  const current = await Notifications.getPermissionsAsync();
-  if (current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
-    return true;
+  try {
+    const current = await Notifications.getPermissionsAsync();
+    if (
+      current.granted ||
+      current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
+    ) {
+      return true;
+    }
+    const requested = await Notifications.requestPermissionsAsync();
+    return Boolean(
+      requested.granted ||
+        requested.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL,
+    );
+  } catch {
+    // Web / unsupported platforms have no notification permission bridge.
+    return false;
   }
-  const requested = await Notifications.requestPermissionsAsync();
-  return Boolean(
-    requested.granted ||
-      requested.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL,
-  );
 }
 
 /**
@@ -99,7 +111,7 @@ export async function scheduleDigestNotifications(
     identifier: WEEKLY_DIGEST_NOTIFICATION_ID,
     content: {
       title: 'Weekly Sunday Overview',
-      body: '7-day vitals, adherence, and next week’s household schedule.',
+      body: 'Household priorities and schedule for the next 7 days.',
       data: weeklyData,
       sound: true,
     },
@@ -115,12 +127,16 @@ export async function scheduleDigestNotifications(
 }
 
 export async function cancelDigestNotifications(): Promise<void> {
-  await Notifications.cancelScheduledNotificationAsync(DAILY_DIGEST_NOTIFICATION_ID).catch(
-    () => undefined,
-  );
-  await Notifications.cancelScheduledNotificationAsync(WEEKLY_DIGEST_NOTIFICATION_ID).catch(
-    () => undefined,
-  );
+  try {
+    await Notifications.cancelScheduledNotificationAsync(DAILY_DIGEST_NOTIFICATION_ID).catch(
+      () => undefined,
+    );
+    await Notifications.cancelScheduledNotificationAsync(WEEKLY_DIGEST_NOTIFICATION_ID).catch(
+      () => undefined,
+    );
+  } catch {
+    // Native cancel APIs are unavailable on web.
+  }
 }
 
 /** Map a notification data payload to an Expo Router digest href. */
@@ -168,20 +184,31 @@ export function subscribeDigestNotificationRouting(
     if (href) navigate(href);
   };
 
-  const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-    handle(
-      response.notification.request.content.data as Record<string, unknown>,
-    );
-  });
+  let sub: { remove: () => void } | undefined;
+  try {
+    sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      handle(
+        response.notification.request.content.data as Record<string, unknown>,
+      );
+    });
+  } catch {
+    return () => undefined;
+  }
 
-  void Notifications.getLastNotificationResponseAsync().then((response) => {
-    if (!response) return;
-    handle(
-      response.notification.request.content.data as Record<string, unknown>,
-    );
-  });
+  try {
+    void Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (!response) return;
+        handle(
+          response.notification.request.content.data as Record<string, unknown>,
+        );
+      })
+      .catch(() => undefined);
+  } catch {
+    // getLastNotificationResponse is unavailable on web.
+  }
 
   return () => {
-    sub.remove();
+    sub?.remove();
   };
 }

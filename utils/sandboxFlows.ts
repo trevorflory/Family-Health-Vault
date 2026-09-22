@@ -565,3 +565,240 @@ export async function runRemainingCanadaConnectorsSandbox(options?: {
     deepLink: `/patient/${patientId}/portalSync`,
   };
 }
+
+export interface DigitalFrontDoorDogfoodResult {
+  bcImported: number;
+  nsImported: number;
+  digestHeadline: string;
+  sbarHasLabs: boolean;
+  script811Cues: number;
+  foiUri: string;
+  askDeniedWithoutGrant: boolean;
+  askPermittedWithGrant: boolean;
+  vaultCryptoUsingDemoKey: boolean;
+}
+
+/**
+ * Dogfood: BC + NS pilot imports → digest → SBAR → 811 → FOI → proxy-gated ask-vault.
+ * Exercises real services (no fake stubs) on Dad.
+ */
+export async function runDigitalFrontDoorDogfood(options?: {
+  patientId?: string;
+  now?: Date;
+}): Promise<DigitalFrontDoorDogfoodResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const now = options?.now ?? new Date('2026-09-15T12:00:00.000Z');
+
+  const { importBcHealthGatewayCsv } = await import(
+    '../services/interop/bcConnector'
+  );
+  const { importNsPatientSummaryText } = await import(
+    '../services/interop/nsConnector'
+  );
+  const { BC_SAMPLE_HEALTH_GATEWAY_CSV } = await import(
+    '../services/interop/bcCsv'
+  );
+  const { NS_SAMPLE_PATIENT_SUMMARY_TEXT } = await import(
+    '../services/interop/nsPatientSummary'
+  );
+  const { askMyVault } = await import('../services/askVault');
+  const { getVaultCryptoStatus } = await import('../services/vaultCrypto');
+  const { resetProxyAccessStore } = await import(
+    '../services/proxyAccessEngine'
+  );
+  const { listMedicalEventsForPatient } = await import('../db/medicalEvents');
+
+  const bc = await syncBcSampleToVault({ patientId, now });
+  await importBcHealthGatewayCsv({
+    patientId,
+    csvText: BC_SAMPLE_HEALTH_GATEWAY_CSV,
+  });
+  const ns = await syncNsSampleToVault({
+    patientId,
+    now: new Date(now.getTime() + 1000),
+  });
+  await importNsPatientSummaryText({
+    patientId,
+    rawText: NS_SAMPLE_PATIENT_SUMMARY_TEXT,
+  });
+
+  const digest = await runDailyDigestSandbox(DEMO_CAREGIVER_ID, now);
+  const events = await listMedicalEventsForPatient(patientId);
+  const sbar = await runDadSbarSandbox({ now, medicalEvents: events });
+  const script = await run811ScriptSandbox();
+  const foi = await runSkHipaFoiSandbox();
+
+  await resetProxyAccessStore(now);
+  let askDeniedWithoutGrant = false;
+  try {
+    await askMyVault({
+      question: 'Summarize kidney labs on file.',
+      events,
+      proxy: {
+        actorId: 'cg-unknown-actor',
+        patientId,
+        now,
+      },
+    });
+  } catch {
+    askDeniedWithoutGrant = true;
+  }
+
+  const permitted = await askMyVault({
+    question: 'Summarize kidney labs on file.',
+    events,
+    proxy: {
+      actorId: DEMO_CAREGIVER_ID,
+      patientId,
+      now,
+    },
+  });
+
+  const crypto = getVaultCryptoStatus();
+
+  return {
+    bcImported: bc.result.importedCount,
+    nsImported: ns.result.importedCount,
+    digestHeadline: digest.headline,
+    sbarHasLabs: Boolean(
+      sbar.document.sections.background?.toLowerCase().includes('egfr') ||
+        sbar.document.sourceEventSummaries?.some((s) =>
+          /egfr|lab|portal|csv|patient summary/i.test(s),
+        ),
+    ),
+    script811Cues: script.dispatcherCueSheet.length,
+    foiUri: foi.uri,
+    askDeniedWithoutGrant,
+    askPermittedWithGrant: Boolean(permitted.accessLog?.permitted),
+    vaultCryptoUsingDemoKey: crypto.usingDemoKey,
+  };
+}
+
+export interface PccLtcVaultBridgeSandboxResult {
+  ingestedTimeline: number;
+  vaultSaved: number;
+  medicationCount: number;
+  patientId: string;
+  deepLink: string;
+  walletProEnabled: boolean;
+}
+
+/** PCC fixture → LTC memory db → MedicalEvents for Dad + optional WALLET_PRO demo. */
+export async function runPccLtcVaultBridgeSandbox(options?: {
+  patientId?: string;
+  enableWalletPro?: boolean;
+}): Promise<PccLtcVaultBridgeSandboxResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const { resetLtcMemoryDb, runPccFixtureSync } = await import(
+    '../services/ehr/client'
+  );
+  const { syncLtcDbToVaultMedicalEvents } = await import(
+    '../services/ehr/vaultBridge'
+  );
+  const { enableSandboxWalletPro } = await import(
+    '../services/walletEntitlements'
+  );
+  const { grantConsent } = await import('../db/consentRegistry');
+
+  resetLtcMemoryDb();
+  const { db, ingested } = await runPccFixtureSync('pcc-facility-demo-01', {
+    patientId,
+  });
+  const bridge = await syncLtcDbToVaultMedicalEvents(db, { patientId });
+  grantConsent('EHR_LTC_INGEST_DELIVERY');
+  grantConsent('CARE_HOME_SYNC');
+  let walletProEnabled = false;
+  if (options?.enableWalletPro !== false) {
+    enableSandboxWalletPro();
+    walletProEnabled = true;
+  }
+  return {
+    ingestedTimeline: ingested,
+    vaultSaved: bridge.savedIds.length,
+    medicationCount: bridge.medicationCount,
+    patientId,
+    deepLink: `/family-feed`,
+    walletProEnabled,
+  };
+}
+
+export interface LocalFullTestPathResult {
+  patientId: string;
+  appointments: number;
+  vitalsEventId?: string;
+  simulatorIngested: number;
+  vaultFromSim: number;
+  digestHeadline: string;
+  sbarUri: string;
+  walletPro: boolean;
+}
+
+/**
+ * Seed → local appt + vital → EHR simulator → digest + SBAR (no cloud).
+ */
+export async function runLocalFullTestPathSandbox(options?: {
+  patientId?: string;
+  now?: Date;
+}): Promise<LocalFullTestPathResult> {
+  const patientId = options?.patientId ?? SEED_DAD_ID;
+  const now = options?.now ?? new Date();
+  const { seedLocalSandboxData: seed } = await import('./mockSeeder');
+  await seed();
+
+  const { upsertAppointment } = await import('../db/appointments');
+  const { addLocalVital } = await import('../db/localVitals');
+  const { setProfileOverride } = await import('../db/profileOverrides');
+  const {
+    presetPrimaryPoaClinical,
+    runSimulatorIngest,
+  } = await import('../services/ehr/simulator');
+  const { enableSandboxWalletPro } = await import(
+    '../services/walletEntitlements'
+  );
+
+  await setProfileOverride({
+    patientId,
+    preferredName: 'Bob (local)',
+    conditionsText: 'Type 2 Diabetes, Stage 3 CKD',
+    allergiesText: 'NKDA (local note)',
+  });
+
+  await upsertAppointment(patientId, {
+    appointmentId: `local-fulltest-${now.getTime()}`,
+    title: 'Local full-test nephrology',
+    startsAt: new Date(now.getTime() + 36 * 3600_000).toISOString(),
+    location: 'Clinic A',
+    preparationAlert: 'Bring SBAR',
+    clinicianName: 'Dr Local',
+    source: 'VAULT',
+  });
+
+  const vital = await addLocalVital({
+    patientId,
+    type: 'BP_SYS',
+    value: 134,
+    recordedAtISO: now.toISOString(),
+  });
+
+  const sim = await runSimulatorIngest(presetPrimaryPoaClinical(), {
+    reset: true,
+    bridgeToVault: true,
+    patientId,
+  });
+
+  enableSandboxWalletPro();
+
+  const digest = await runDailyDigestSandbox(DEMO_CAREGIVER_ID, now);
+  const sbar = await runDadSbarSandbox({ now });
+
+  return {
+    patientId,
+    appointments: 1,
+    vitalsEventId: vital.eventId,
+    simulatorIngested: sim.ingested,
+    vaultFromSim: sim.vaultSaved,
+    digestHeadline: digest.headline,
+    sbarUri: sbar.uri,
+    walletPro: true,
+  };
+}

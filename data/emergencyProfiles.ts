@@ -96,6 +96,57 @@ export const EMERGENCY_PROFILES: Record<string, EmergencyPatientContext> = {
       'Up to date on SK childhood vaccines through age 3 (see vault)',
     ],
   },
+  'pt-mom-76': {
+    patientId: 'pt-mom-76',
+    fullName: 'Helen Ellis',
+    ageYears: 76,
+    allergies: ['NKDA'],
+    activeMedications: ['Amlodipine 5mg daily', 'Ibuprofen 200mg PRN'],
+    emergencyContacts: [
+      {
+        name: 'Alex Ellis',
+        relationship: 'Primary caregiver / child',
+        phone: '+1-306-555-0142',
+      },
+    ],
+    primaryCaregiverPhone: '+1-306-555-0142',
+    criticalAlerts: ['Hypertension', 'Orthostatic dizziness history'],
+  },
+  'pt-sam-07': {
+    patientId: 'pt-sam-07',
+    fullName: 'Sam Ellis',
+    ageYears: 7,
+    allergies: ['NKDA'],
+    activeMedications: ['Salbutamol inhaler PRN'],
+    emergencyContacts: [
+      {
+        name: 'Alex Ellis',
+        relationship: 'Parent / primary caregiver',
+        phone: '+1-306-555-0142',
+      },
+    ],
+    primaryCaregiverPhone: '+1-306-555-0142',
+    criticalAlerts: [
+      'Pediatric patient — contact caregiver first',
+      'Mild intermittent asthma — inhaler with caregiver',
+    ],
+  },
+  'pt-nora-11': {
+    patientId: 'pt-nora-11',
+    fullName: 'Nora Ellis',
+    ageYears: 11,
+    allergies: ['NKDA'],
+    activeMedications: [],
+    emergencyContacts: [
+      {
+        name: 'Alex Ellis',
+        relationship: 'Parent / primary caregiver',
+        phone: '+1-306-555-0142',
+      },
+    ],
+    primaryCaregiverPhone: '+1-306-555-0142',
+    criticalAlerts: ['Pediatric patient — contact caregiver first'],
+  },
 };
 
 export function getEmergencyProfile(
