@@ -109,3 +109,18 @@ export function compileBiomarkerTrends(
     })
     .filter((s) => s.points.length > 0);
 }
+
+export const BIOMARKER_TRENDS_NOTICE =
+  'Lab trends are transcribed caregiver records from uploaded or synced documents — not a clinical interpretation, diagnosis, or treatment recommendation.';
+
+/** One-line summary per series for Visit Kit / SBAR attachments. */
+export function formatBiomarkerSummaryLines(
+  series: BiomarkerSeries[],
+): string[] {
+  return series.map((s) => {
+    const latest = s.points[s.points.length - 1];
+    const history =
+      s.points.length > 1 ? ` · ${s.points.length} values on file` : '';
+    return `${s.displayName}: ${latest.value} ${latest.units}${history}`;
+  });
+}

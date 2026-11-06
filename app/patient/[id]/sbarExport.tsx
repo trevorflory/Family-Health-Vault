@@ -1,5 +1,5 @@
 import * as Sharing from 'expo-sharing';
-import { useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -11,18 +11,28 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { listMedicalEventsForPatient } from '../../../db/medicalEvents';
 import { getPatientVaultProfile } from '../../../data/patientVault';
+import {
+  compileBiomarkerTrends,
+  formatBiomarkerSummaryLines,
+} from '../../../services/biomarkerTrends';
 import {
   compileSBAR,
   SBAR_REGULATORY_NOTICE,
 } from '../../../services/sbarEngine';
 import { generateSBARPDF } from '../../../services/sbarGenerator';
+import {
+  generateVisitKitPDF,
+  VISIT_KIT_NOTICE,
+} from '../../../services/visitKitGenerator';
 import type { SBARDocument } from '../../../types/sbar';
 
 export default function SbarExportScreen() {
-  const { id: patientId, appointmentId } = useLocalSearchParams<{
+  const { id: patientId, appointmentId, preferVisitKit } = useLocalSearchParams<{
     id: string;
     appointmentId?: string;
+    preferVisitKit?: string;
   }>();
 
   const profile = getPatientVaultProfile(patientId ?? '');
@@ -31,7 +41,9 @@ export default function SbarExportScreen() {
   );
   const [caregiverNotes, setCaregiverNotes] = useState('');
   const [doc, setDoc] = useState<SBARDocument | null>(null);
+  const [labSummaries, setLabSummaries] = useState<string[]>([]);
   const [pdfUri, setPdfUri] = useState<string | null>(null);
+  const [kitMode, setKitMode] = useState(preferVisitKit === '1');
   const [busy, setBusy] = useState(false);
 
   const subtitle = useMemo(() => {
@@ -41,10 +53,11 @@ export default function SbarExportScreen() {
 
   const canGenerate = Boolean(profile) && visitReason.trim().length > 0;
 
-  async function onGenerate() {
+  async function onGenerate(asVisitKit = kitMode) {
     if (!patientId || !canGenerate) return;
     try {
       setBusy(true);
+      setKitMode(asVisitKit);
       const compiled = await compileSBAR(patientId, {
         visitReason: visitReason.trim(),
         caregiverNotes: caregiverNotes.trim() || undefined,
@@ -53,11 +66,19 @@ export default function SbarExportScreen() {
         includeMedicalEvents: true,
       });
       setDoc(compiled);
-      const uri = await generateSBARPDF(compiled);
+
+      const events = await listMedicalEventsForPatient(patientId);
+      const series = compileBiomarkerTrends(events);
+      setLabSummaries(formatBiomarkerSummaryLines(series));
+
+      const uri = asVisitKit
+        ? await generateVisitKitPDF(compiled, series)
+        : await generateSBARPDF(compiled);
       setPdfUri(uri);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unable to compile SBAR';
-      Alert.alert('SBAR export failed', message);
+      const message =
+        err instanceof Error ? err.message : 'Unable to compile export';
+      Alert.alert(asVisitKit ? 'Visit kit failed' : 'SBAR export failed', message);
     } finally {
       setBusy(false);
     }
@@ -65,7 +86,7 @@ export default function SbarExportScreen() {
 
   async function onShare() {
     if (!pdfUri) {
-      Alert.alert('No PDF yet', 'Generate the SBAR PDF first.');
+      Alert.alert('No PDF yet', 'Generate the SBAR or Visit Kit PDF first.');
       return;
     }
     if (!(await Sharing.isAvailableAsync())) {
@@ -77,7 +98,7 @@ export default function SbarExportScreen() {
     }
     await Sharing.shareAsync(pdfUri, {
       mimeType: 'application/pdf',
-      dialogTitle: 'Share Visit SBAR PDF',
+      dialogTitle: kitMode ? 'Share Visit Kit PDF' : 'Share Visit SBAR PDF',
       UTI: 'com.adobe.pdf',
     });
   }
@@ -97,6 +118,7 @@ export default function SbarExportScreen() {
       <Text style={styles.heading}>Export Visit SBAR</Text>
       <Text style={styles.lede}>{subtitle}</Text>
       <Text style={styles.notice}>{SBAR_REGULATORY_NOTICE}</Text>
+      <Text style={styles.notice}>{VISIT_KIT_NOTICE}</Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Visit reason</Text>
@@ -139,19 +161,44 @@ export default function SbarExportScreen() {
 
       <Pressable
         style={[styles.primaryBtn, (!canGenerate || busy) && styles.btnDisabled]}
-        onPress={onGenerate}
+        onPress={() => void onGenerate(false)}
         disabled={!canGenerate || busy}
       >
-        {busy ? (
+        {busy && !kitMode ? (
           <ActivityIndicator color="#f4f7f5" />
         ) : (
           <Text style={styles.primaryBtnText}>Generate 1-page SBAR</Text>
         )}
       </Pressable>
 
+      <Pressable
+        style={[
+          styles.secondaryBtn,
+          (!canGenerate || busy) && styles.btnDisabled,
+        ]}
+        onPress={() => void onGenerate(true)}
+        disabled={!canGenerate || busy}
+      >
+        {busy && kitMode ? (
+          <ActivityIndicator color="#0f3d3e" />
+        ) : (
+          <Text style={styles.secondaryBtnText}>
+            Export visit kit (SBAR + labs)
+          </Text>
+        )}
+      </Pressable>
+
+      <Link href={`/patient/${patientId}/insights`} asChild>
+        <Pressable style={styles.secondaryBtn}>
+          <Text style={styles.secondaryBtnText}>Open Visit Prep Insights</Text>
+        </Pressable>
+      </Link>
+
       {doc ? (
         <View style={styles.previewCard}>
-          <Text style={styles.previewLabel}>Preview</Text>
+          <Text style={styles.previewLabel}>
+            Preview {kitMode ? '(Visit Kit)' : '(SBAR)'}
+          </Text>
           {doc.sourceEventSummaries.length > 0 ? (
             <>
               <Text style={styles.sectionLabel}>Vault sources included</Text>
@@ -167,6 +214,16 @@ export default function SbarExportScreen() {
               patient yet. Vault profile context still fills Background.
             </Text>
           )}
+          {labSummaries.length > 0 ? (
+            <>
+              <Text style={styles.sectionLabel}>Lab values on file</Text>
+              {labSummaries.map((line) => (
+                <Text key={line} style={styles.bullet}>
+                  • {line}
+                </Text>
+              ))}
+            </>
+          ) : null}
           <Text style={styles.sectionLabel}>Situation</Text>
           <Text style={styles.body}>{doc.sections.situation}</Text>
           <Text style={styles.sectionLabel}>Background</Text>

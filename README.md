@@ -133,6 +133,13 @@ Web uses `sessionStorage`-backed DB stubs (`db/*.web.ts`) so Sandbox seed surviv
 - `app/delegate/[token].tsx` / `app/delegate/log.tsx` — scoped aide UI
 - Clinician / ER pilot artifact remains **1-page SBAR + Emergency Pass**
 
+### Lab Trends + Visit Kit
+
+- `services/biomarkerTrends.ts` — `compileBiomarkerTrends` / `formatBiomarkerSummaryLines`
+- `app/patient/[id]/insights.tsx` — Visit Prep Insights with sparklines
+- `services/visitKitTemplate.ts` / `visitKitGenerator.ts` — SBAR + labs Visit Kit PDF
+- SBAR screen: **Export visit kit (SBAR + labs)**; seed includes prior + current Dad labs
+
 ### 1-Page SBAR Summarizer
 
 - `services/sbarEngine.ts` — async `compileSBAR()` educational context summarizer; folds MedicalEvents via `summarizeMedicalEvents` (no diagnosis / no prescribing)

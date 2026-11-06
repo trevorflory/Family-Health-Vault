@@ -103,6 +103,9 @@ export interface SaveMedicalEventInput {
   sourceAuthorityId?: string | null;
   externalId?: string | null;
   lastSyncedAt?: string | null;
+  /** Optional seed/import timestamps (ISO). */
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /** Canonical local database filename. */
