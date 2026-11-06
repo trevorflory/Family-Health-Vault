@@ -1,24 +1,22 @@
-# Healthcare App
+# Family Health Vault
 
-Expo/React Native companion for Canadian sandwich-generation caregivers: FOI requests, 1-page SBAR visit summaries, 811 prep, digests, OCR / voice debriefs, emergency pass, and proxy access.
+Expo/React Native companion for Canadian sandwich-generation caregivers: FOI requests, 1-page SBAR visit summaries, Visit Kit + lab trends, 811 prep, digests, OCR / voice debriefs, emergency pass, proxy access, and provincial FILE_IMPORT connectors.
+
+**Canonical repo:** [trevorflory/Family-Health-Vault](https://github.com/trevorflory/Family-Health-Vault)  
+**Local Windows path (recommended):** `D:\dev\family_health_vault` (clone/open via WSL or Git for Windows)
 
 ## Prerequisites
 
 - **Node.js 20+** (22 LTS is fine) and npm
-- Origin CLI in **WSL** on Windows (not PowerShell) — see [Origin CLI docs](https://cursor.com/docs/cli)
+- GitHub access to the private repo (PAT or `gh auth login`)
 
-Repo: **[tflo/family-health-vault](https://cursor.com/codebase/tflo/family-health-vault)** (Private — change in repo settings if needed).
-
-## Clone on Windows (WSL)
+## Clone
 
 ```bash
-# Run in WSL (Origin CLI is not available in PowerShell)
-curl -fsSL https://downloads.cursor.com/origin/install.sh | sh
-# If `origin` is not found:
-#   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
-origin auth login
-origin repo clone tflo/family-health-vault
-cd family-health-vault
+git clone https://github.com/trevorflory/Family-Health-Vault.git
+cd Family-Health-Vault
+# or, if you already use D:\dev\family_health_vault:
+#   cd /mnt/d/dev/family_health_vault && git fetch origin && git checkout main && git pull
 npm install
 npm run web
 ```
@@ -43,13 +41,15 @@ npm run web:clear  # Web with Metro cache cleared (use if UI looks stale)
 
 Web uses `sessionStorage`-backed DB stubs (`db/*.web.ts`) so Sandbox seed survives navigation. Native iOS/Android use SQLite via `expo-sqlite`.
 
-## Manual test: MedicalEvents → SBAR
+The optional `server/` package is a separate Node/Drizzle backend (ingestion / family-feed experiments) and is not required for the Expo caregiver loops.
+
+## Manual test: MedicalEvents → SBAR / Visit Kit
 
 1. Home → **QA Sandbox** (or open `/sandbox`).
 2. Tap **Seed local SQLite profiles** — confirm success mentions `me_seed_sha_lab_dad` and `me_seed_visit_debrief_dad`.
-3. Open **Robert / Dad** → **Export Visit SBAR** (or `/patient/pt-7801/sbarExport`).
-4. Visit reason e.g. `Nephrology follow-up — review kidney labs` → **Generate 1-page SBAR**.
-5. Expect **Vault sources included** with visit debrief + lab OCR (eGFR), Background/Assessment filled from those events, and the Educational Context Summarizer notice.
+3. Open **Robert / Dad** → **Lab trends / Visit Prep Insights** and/or **Export Visit SBAR**.
+4. Visit reason e.g. `Nephrology follow-up — review kidney labs` → **Generate 1-page SBAR** (or **Export visit kit (SBAR + labs)**).
+5. Expect vault sources / sparklines from prior + current SHA labs, and the Educational Context Summarizer notice.
 
 ## Manual test: Digest vault truthfulness
 
@@ -71,7 +71,7 @@ Web uses `sessionStorage`-backed DB stubs (`db/*.web.ts`) so Sandbox seed surviv
 ### QA Local Testing Sandbox
 
 - `utils/mockSeeder.ts` — Dad (78) / Child (4) SQLite seed fixtures + MedicalEvents for SBAR
-- `utils/sandboxFlows.ts` — digest / compileSBAR / SK HIPA FOI / 811 one-click runners
+- `utils/sandboxFlows.ts` — digest / compileSBAR / SK HIPA FOI / 811 / dogfood one-click runners
 - `app/sandbox/index.tsx` — QA console for core loops
 
 ### Multi-Generational Proxy Access
@@ -168,11 +168,12 @@ See `PRD.md` and `.cursorrules` for product rules.
 
 | Symptom | Fix |
 | --- | --- |
-| Clone fails / `origin` missing | Install Origin CLI in WSL and ensure `~/.local/bin` is on PATH (see above). |
+| Auth / clone fails | `gh auth login` or a classic PAT with `repo` scope; confirm access to `trevorflory/Family-Health-Vault`. |
+| Local tree looks old | `git fetch origin && git checkout main && git reset --hard origin/main` (only if you have no local-only commits). |
 | Port in use | `npx expo start --web --port 43128` (or free 43127). |
 | Stale UI after pull | `npm run web:clear` |
 | SBAR says no MedicalEvents | Seed Sandbox first in the **same browser tab**; web store is per-tab `sessionStorage`. |
 | `expo-sqlite` / WASM errors on web | Ensure you are on current `main` (web stubs under `db/*.web.ts`). |
 | Only Agent Store docs visible | That sync is notes/media — clone the git repo for `app/`, `services/`, etc. |
 
-Prefer cloning **tflo/family-health-vault**. You can also use **Try Live** on the agent run without cloning.
+**Note:** Older Cursor Origin clones (`tflo/family-health-vault`) are obsolete for product work — use GitHub `main`.

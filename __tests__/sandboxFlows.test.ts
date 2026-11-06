@@ -45,6 +45,13 @@ jest.mock('../db/medDoses', () => ({
   markMedDosesGiven: jest.fn(async () => []),
 }));
 
+/** Avoid pulling expo-sqlite via db/client when createLiveDigestLoaders runs. */
+jest.mock('../db/appointments', () => ({
+  listAppointmentsForPatient: jest.fn(async () => []),
+  upsertAppointment: jest.fn(async (row: Record<string, unknown>) => row),
+  deleteAppointment: jest.fn(async () => undefined),
+}));
+
 jest.mock('../db/patientProfiles', () => ({
   upsertPatientProfile: jest.fn(async (input: Record<string, unknown>) => ({
     ...input,
