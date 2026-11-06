@@ -54,5 +54,6 @@ export {
 export {
   ConsentKindSchema,
   type ConsentKind,
+  type ConsentRecord,
   assertConsentGranted,
 } from './consent';
