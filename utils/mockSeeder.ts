@@ -55,6 +55,7 @@ export interface SeedResult {
   caregiverId: string;
   profiles: Array<{ id: string; displayName: string; role: string }>;
   labEventId: string;
+  priorLabEventId: string;
   visitDebriefEventId: string;
   vaccineNote: string;
 }
@@ -108,6 +109,53 @@ export async function seedLocalSandboxData(): Promise<SeedResult> {
     }),
   });
 
+  const priorLabEvent = await saveMedicalEvent({
+    id: 'me_seed_sha_lab_dad_prior',
+    patientId: SEED_DAD_ID,
+    kind: 'LAB_RESULT',
+    sourceUri: 'mock://sha/lab-report-2026-03-01.pdf',
+    rawText:
+      'SHA Lab (prior)\neGFR 58\nCreatinine 1.3\nHbA1c 7.4',
+    parsed: {
+      documentHint: 'lab',
+      labs: [
+        {
+          testName: 'eGFR',
+          value: '58',
+          units: 'mL/min/1.73m2',
+          referenceRange: '60-120',
+          code: 'EGFR',
+          loinc: '33914-3',
+        },
+        {
+          testName: 'Creatinine',
+          value: '1.3',
+          units: 'mg/dL',
+          referenceRange: '0.7-1.3',
+          code: 'CREATININE',
+          loinc: '2160-0',
+        },
+        {
+          testName: 'HbA1c',
+          value: '7.4',
+          units: '%',
+          referenceRange: '<5.7',
+          code: 'HBA1C',
+          loinc: '4548-4',
+        },
+      ],
+      prescriptions: [],
+      parserNotes: ['Seeded prior SHA lab for Insights trends'],
+      sourceAuthorityId: 'sk-sha',
+    },
+    status: 'CONFIRMED',
+    sourceType: 'OCR',
+    sourceAuthorityId: 'sk-sha',
+    createdAt: '2026-03-01T15:00:00.000Z',
+    updatedAt: '2026-03-01T15:00:00.000Z',
+    lastSyncedAt: '2026-03-01T15:00:00.000Z',
+  });
+
   const labEvent = await saveMedicalEvent({
     id: 'me_seed_sha_lab_dad',
     patientId: SEED_DAD_ID,
@@ -149,6 +197,9 @@ export async function seedLocalSandboxData(): Promise<SeedResult> {
     status: 'CONFIRMED',
     sourceType: 'OCR',
     sourceAuthorityId: 'sk-sha',
+    createdAt: '2026-09-02T15:00:00.000Z',
+    updatedAt: '2026-09-02T15:00:00.000Z',
+    lastSyncedAt: '2026-09-02T15:00:00.000Z',
   });
 
   const visitDebrief = await saveMedicalEvent({
@@ -188,6 +239,7 @@ export async function seedLocalSandboxData(): Promise<SeedResult> {
       { id: child.id, displayName: child.displayName, role: child.role },
     ],
     labEventId: labEvent.id,
+    priorLabEventId: priorLabEvent.id,
     visitDebriefEventId: visitDebrief.id,
     vaccineNote: `${CHILD_SK_VACCINES.length} SK schedule vaccines seeded for Child (4)`,
   };

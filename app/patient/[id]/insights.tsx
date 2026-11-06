@@ -10,12 +10,28 @@ import {
 } from 'react-native';
 import { listMedicalEventsForPatient } from '../../../db/medicalEvents';
 import {
+  BIOMARKER_TRENDS_NOTICE,
   compileBiomarkerTrends,
   type BiomarkerSeries,
 } from '../../../services/biomarkerTrends';
 import { queryLocalLLM } from '../../../services/localAIClient';
 import { SBAR_REGULATORY_NOTICE } from '../../../services/sbarEngine';
 import type { MedicalEventRecord } from '../../../types/db';
+
+function SparkBars({ values }: { values: number[] }) {
+  if (!values.length) return null;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const span = max - min || 1;
+  return (
+    <View style={styles.sparkRow}>
+      {values.map((v, i) => {
+        const h = Math.max(6, Math.round(((v - min) / span) * 28) + 6);
+        return <View key={i} style={[styles.sparkBar, { height: h }]} />;
+      })}
+    </View>
+  );
+}
 
 export default function InsightsScreen() {
   const { id: patientId } = useLocalSearchParams<{ id: string }>();
@@ -80,6 +96,7 @@ export default function InsightsScreen() {
         Educational context only — bring Export Visit SBAR to the clinician.
       </Text>
       <Text style={styles.notice}>{SBAR_REGULATORY_NOTICE}</Text>
+      <Text style={styles.notice}>{BIOMARKER_TRENDS_NOTICE}</Text>
       {syncNote ? <Text style={styles.sync}>{syncNote}</Text> : null}
 
       {busy ? (
@@ -87,7 +104,7 @@ export default function InsightsScreen() {
       ) : series.length === 0 ? (
         <Text style={styles.empty}>
           No trendable labs yet. Upload a lab/portal screenshot or sync from a
-          health authority.
+          health authority. Sandbox seed adds prior + current Dad SHA labs.
         </Text>
       ) : (
         series.map((s) => (
@@ -96,6 +113,12 @@ export default function InsightsScreen() {
               {s.displayName}
               {s.loinc ? ` · LOINC ${s.loinc}` : ''}
             </Text>
+            <Text style={styles.point}>
+              Latest: {s.points[s.points.length - 1]?.value}{' '}
+              {s.points[s.points.length - 1]?.units}
+              {s.points.length > 1 ? ` · ${s.points.length} points` : ''}
+            </Text>
+            <SparkBars values={s.points.map((p) => p.value)} />
             {s.points.map((p) => (
               <Text key={`${p.eventId}-${p.observedAt}`} style={styles.point}>
                 {p.value} {p.units} · {p.observedAt.slice(0, 10)} · {p.sourceType}
@@ -118,9 +141,20 @@ export default function InsightsScreen() {
       </Pressable>
       {eduText ? <Text style={styles.edu}>{eduText}</Text> : null}
 
+      <Link
+        href={{
+          pathname: `/patient/${patientId}/sbarExport`,
+          params: { preferVisitKit: '1' },
+        }}
+        asChild
+      >
+        <Pressable style={styles.secondary}>
+          <Text style={styles.secondaryText}>Export visit kit (SBAR + labs)</Text>
+        </Pressable>
+      </Link>
       <Link href={`/patient/${patientId}/sbarExport`} asChild>
         <Pressable style={styles.secondary}>
-          <Text style={styles.secondaryText}>Export Visit SBAR</Text>
+          <Text style={styles.secondaryText}>Export Visit SBAR only</Text>
         </Pressable>
       </Link>
       <Link href={`/patient/${patientId}/portalSync`} asChild>
@@ -155,6 +189,18 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f3d3e' },
   point: { fontSize: 14, color: '#355556' },
+  sparkRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 4,
+    height: 36,
+    marginVertical: 6,
+  },
+  sparkBar: {
+    width: 10,
+    backgroundColor: '#1d5c5e',
+    borderRadius: 2,
+  },
   cta: {
     backgroundColor: '#0f3d3e',
     paddingVertical: 14,

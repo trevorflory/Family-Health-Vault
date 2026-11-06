@@ -53,8 +53,8 @@ export async function saveMedicalEvent(
     sourceAuthorityId: input.sourceAuthorityId ?? null,
     externalId: input.externalId ?? null,
     lastSyncedAt: input.lastSyncedAt ?? null,
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
+    createdAt: input.createdAt ?? existing?.createdAt ?? now,
+    updatedAt: input.updatedAt ?? now,
   });
 
   memoryStore.set(id, record);

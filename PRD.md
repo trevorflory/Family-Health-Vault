@@ -38,6 +38,18 @@ This Expo/React Native healthcare companion helps adult sandwich-generation care
 
 - SBAR SQLite history or cloud backup (MedicalEvents remain the source of truth for OCR / visit debriefs).
 
+## Module: Lab Trends + Visit Kit
+
+### Goals
+
+- Surface biomarker trends from CONFIRMED / PENDING_REVIEW lab MedicalEvents via existing `compileBiomarkerTrends` + Visit Prep Insights (sparklines).
+- **Visit Kit** PDF: SBAR + transcribed lab summary lines (`generateVisitKitPDF`) with shared SaMD notices.
+- Care hub + Insights + SBAR CTAs for Trends / Visit Kit; sandbox seeds prior + current Dad SHA labs.
+
+### Non-goals
+
+- NL quick-log, condition knowledge-base agent, cloud AI, clinical critical-value alerting.
+
 ## Module: 811 Call Assistant (Contextual Summarizer)
 
 ### Regulatory Guardrail (Health Canada SaMD Safeguard)

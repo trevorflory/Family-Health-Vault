@@ -308,8 +308,8 @@ export default function SandboxHomeScreen() {
       {seedResult ? (
         <Text style={styles.ok}>
           Seeded {seedResult.profiles.map((p) => p.displayName).join(' · ')}.
-          Lab {seedResult.labEventId} · visit debrief{' '}
-          {seedResult.visitDebriefEventId}. {seedResult.vaccineNote}
+          Labs {seedResult.priorLabEventId} → {seedResult.labEventId} · visit
+          debrief {seedResult.visitDebriefEventId}. {seedResult.vaccineNote}
         </Text>
       ) : null}
 

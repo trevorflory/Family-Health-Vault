@@ -148,6 +148,14 @@ export default function PatientScreen() {
           </Text>
         </Pressable>
       </Link>
+      <Link href={`/patient/${id}/insights`} asChild>
+        <Pressable style={styles.row}>
+          <Text style={styles.rowTitle}>Lab trends / Visit Prep Insights</Text>
+          <Text style={styles.rowMeta}>
+            OCR & portal biomarkers · sparklines · visit kit export
+          </Text>
+        </Pressable>
+      </Link>
       <Link href={`/patient/${id}/events`} asChild>
         <Pressable style={styles.row}>
           <Text style={styles.rowTitle}>MedicalEvents inbox</Text>
