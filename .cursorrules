@@ -32,7 +32,8 @@
 
 - `app/patient/[id]/emergencyPass.tsx` — emergency QR + wallet card
 - `app/patient/[id]/proxyAccess.tsx` — proxy roles, access log, age-out hand-off
-- `app/patient/[id]/insights.tsx` — biomarker trends / visit-prep Insights
+- `app/patient/[id]/insights.tsx` — biomarker trends / visit-prep Insights (sparklines)
+- `services/visitKitTemplate.ts` / `visitKitGenerator.ts` — Visit Kit PDF (SBAR + lab summary lines)
 - `data/skInterop.ts` — MySask export playbook + SMART readiness (honest NOT_PUBLIC)
 - `services/interop/skConnector.ts` — Saskatchewan FILE_IMPORT connector (FHIR JSON + MySask lab text)
 - `app/patient/[id]/portalSync.tsx` — SK connector exercise surface (sample sync + JSON file import)
@@ -83,10 +84,11 @@
 5. `compileSBAR` is async: load CONFIRMED/PENDING_REVIEW MedicalEvents (or inject `options.medicalEvents` in tests); fold VISIT_DEBRIEF → Assessment and OCR labs/Rx → Background with SaMD-safe wording.
 6. `generateSBARPDF` returns an `expo-print` URI (or base64 fallback); no separate SBAR SQLite table — MedicalEvents are the persistence source.
 7. Always attach `SBAR_REGULATORY_NOTICE` to engine output and UI; surface `sourceEventSummaries` in the export preview.
+8. Visit Kit reuses SBAR HTML + `formatBiomarkerSummaryLines`; attach the same SaMD notices; do not invent a parallel diagnosis layer.
 
 ## QA sandbox rules
 
-1. `seedLocalSandboxData()` must create Dad (78) CKD/T2DM + 4 meds + SHA lab mock + visit debrief MedicalEvent and Child (4) SK vaccines.
+1. `seedLocalSandboxData()` must create Dad (78) CKD/T2DM + 4 meds + SHA lab mock (prior + current for trends) + visit debrief MedicalEvent and Child (4) SK vaccines.
 2. Sandbox actions exercise real services (digest daily/weekly, FOI, 811, SBAR via `compileSBAR`/`generateSBARPDF`, emergency pass, OCR parse+save, voice debrief extract+save, SK connector sample sync) — no parallel hardcoded SBAR HTML path.
 3. Digest triggers must surface the push alert payload for verification (daily + weekly).
 4. Keep seed fixtures unit-testable without SQLite where possible (`getDadSandboxMedicalEvents`).
